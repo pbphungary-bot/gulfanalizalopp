@@ -32,8 +32,13 @@ Distances: yards off the green, feet on the green. Lies: `tee`, `fairway`, `roug
 `sand`, `recovery`, `green`, `holed`. A shot's start is the previous shot's end, so
 recording a shot is usually three taps: club, finish, distance.
 
-Later modules plug into the same document: `launchSessions[]` (launch monitor imports,
-linked to practice sessions), `swingVideos[]`, `workouts[]`.
+| `launchSessions[]` | date, source (`screenshot` / `csv`), device, imageCount, note | player (milestone 2) |
+| `launchShots[]` | sessionId, group (e.g. red / yellow), club, carry, total, clubSpeed, ballSpeed, path, face, smash, launch, backspin, sidespin, apex, toTarget, flags[] | launch session |
+
+Launch shot units are stored as shown on the monitor (metres, mph, degrees, rpm). Path,
+face and sidespin are signed numbers: path + = in-to-out, face + = open, sidespin + = fade.
+
+Later modules plug into the same document: `swingVideos[]`, `workouts[]`.
 
 ## Milestones
 
@@ -48,6 +53,19 @@ linked to practice sessions), `swingVideos[]`, `workouts[]`.
    - CSV import with column mapping (date, course, score, optional per-hole scores and
      putts), with a downloadable template. Covers spreadsheets and apps that do export.
    - Course data: par, length, course rating and slope entered once per course and reused.
+   - **Read screenshots and photos** (scorecards from other apps, launch monitor shot
+     history screens). Flow: pick one or more images → each is read by Claude vision into
+     a fixed JSON shape → rows from all images are merged and overlapping duplicates
+     dropped (same carry, total, speeds and spin) → a review table shows every row, with
+     uncertain cells highlighted and a sanity check (smash ≈ ball speed / club speed) →
+     the user picks the club per colour group, fixes or deletes rows, then saves. AVG rows
+     are ignored and recomputed. Nothing is saved until the user confirms.
+   - Vision needs an Anthropic API key. Phase 1: the user pastes their own key in
+     Settings; it is stored only on that device and the images go straight from the phone
+     to the API. Phase 2, if the app is shared: a small serverless proxy (for example a
+     Cloudflare Worker) holds the key instead.
+   - This brings launch monitor data forward from "deferred": per-club carry, dispersion,
+     speeds and spin appear in My Game.
    - Imported rounds are marked with their source and level of detail, so stats only use
      what each round actually has (scoring trends use all rounds; putting, fairways and
      strokes gained use only rounds recorded shot by shot).
@@ -63,4 +81,4 @@ linked to practice sessions), `swingVideos[]`, `workouts[]`.
    available time and play day; mark items done; next week reweights from new rounds
    and drill results. The Home "Your next step" card becomes the centrepiece.
 
-Deferred: GPS / course maps, launch monitor import, swing video, fitness, AI chat coach.
+Deferred: GPS / course maps, direct launch monitor connections, swing video, fitness, AI chat coach.
