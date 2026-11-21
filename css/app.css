@@ -200,3 +200,17 @@ table.sc th { color: var(--muted); font-weight: 700; }
   .phone { max-height: none; }
   .screens { padding-top: max(20px, env(safe-area-inset-top, 0px)); }
 }
+
+/* ---- Milestone 2: history import ---- */
+.tag { font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 2px 6px; border-radius: 6px; background: var(--card-alt); color: var(--accent); vertical-align: middle; }
+.trend { display: flex; align-items: flex-end; gap: 4px; height: 92px; padding-top: 16px; }
+.trend span { flex: 1; min-width: 0; max-width: 36px; background: var(--card-alt); border: 1px solid var(--line); border-radius: 6px 6px 2px 2px; position: relative; }
+.trend span.comp { border-color: var(--accent); }
+.trend i { position: absolute; top: -16px; left: 0; right: 0; text-align: center; font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted); }
+table.sc.entry td { padding: 3px 2px; }
+.cell { width: 100%; min-height: 40px; box-sizing: border-box; text-align: center; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card-alt); color: var(--text); font: 600 16px var(--font); }
+tr.dupe td { color: var(--muted); text-decoration: line-through; }
+details summary { cursor: pointer; padding: 6px 0; }
+.chip small { font-size: 12px; margin-left: 4px; }
+.chip[aria-pressed="true"] small { color: var(--on-primary); }

@@ -2,7 +2,7 @@
 // Stored in localStorage on the device; exportable as a JSON backup.
 
 const KEY = 'golfcoach.v1';
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const LIES = ['tee', 'fairway', 'rough', 'sand', 'recovery', 'green', 'holed'];
 export const CLUBS = ['Driver', '3W', '5W', 'Hybrid', '4i', '5i', '6i', '7i', '8i', '9i', 'PW', 'GW', 'SW', 'LW', 'Putter'];
@@ -18,17 +18,23 @@ function empty() {
     player: null,          // { id, name, handicap, targetHandicap, homeCourse, practiceMinutesPerWeek, preferredPlayDay, createdAt, updatedAt }
     goals: [],             // { id, kind: 'handicap'|'custom', title, target, byDate, status, createdAt }
     courses: [],           // { id, name, holes: [{ n, par, yards }], updatedAt }
-    rounds: [],            // { id, courseId, courseName, date, holes: [{ n, par, yards }], status: 'in_progress'|'complete', createdAt, completedAt }
+    rounds: [],            // { id, courseId, courseName, date, holes: [{ n, par, yards, score?, putts? }], status, source, detail: 'shots'|'holes'|'total', totalScore?, parTotal?, totalPutts?, competition, createdAt, completedAt }
     shots: [],             // { id, roundId, hole, seq, club, startLie, startDist, endLie, endDist, penalty, createdAt }
+    launchSessions: [],    // { id, date, source: 'file'|'screenshot', device, fileName, note, createdAt }
+    launchShots: [],       // { id, sessionId, group, seq, club, carry, total, clubSpeed, ballSpeed, path, face, smash, launch, backspin, sidespin, apex, toTarget, signed: bool, note }
     practiceSessions: [],  // milestone 3
     plans: []              // milestone 4
   };
 }
 
 function migrate(doc) {
-  // Future schema versions upgrade here, step by step.
   const base = empty();
   for (const k of Object.keys(base)) if (doc[k] === undefined) doc[k] = base[k];
+  // v1 -> v2: rounds gain source and detail level.
+  for (const r of doc.rounds) {
+    if (!r.source) r.source = 'app';
+    if (!r.detail) r.detail = 'shots';
+  }
   doc.schemaVersion = SCHEMA_VERSION;
   return doc;
 }
@@ -100,7 +106,8 @@ export function startRound({ courseName, date, holeCount }) {
   }
   const r = {
     id: uid(), courseId: course ? course.id : null, courseName: courseName.trim(), date,
-    holes, status: 'in_progress', createdAt: new Date().toISOString(), completedAt: null
+    holes, status: 'in_progress', source: 'app', detail: 'shots', competition: false,
+    createdAt: new Date().toISOString(), completedAt: null
   };
   db.rounds.push(r);
   rememberCourse(r);
@@ -164,6 +171,65 @@ export function removeLastShot(roundId, hole) {
   db.shots = db.shots.filter((s) => s.id !== last.id);
   persist();
   return last;
+}
+
+// ---- Past rounds (manual entry or file import) ----
+// fields: { courseName, date, holeCount, detail: 'total'|'holes', totalScore, parTotal, totalPutts, holes: [{ n, par, score, putts }], competition, source }
+export function addPastRound(fields) {
+  const now = new Date().toISOString();
+  const course = findCourse(fields.courseName);
+  const holes = [];
+  for (let i = 1; i <= fields.holeCount; i++) {
+    const given = fields.holes && fields.holes.find((h) => h.n === i);
+    const known = course && course.holes && course.holes.find((h) => h.n === i);
+    holes.push({ n: i, par: (given && given.par) || (known && known.par) || 4, yards: known ? known.yards : null,
+      ...(given && given.score != null ? { score: given.score } : {}), ...(given && given.putts != null ? { putts: given.putts } : {}) });
+  }
+  const r = {
+    id: uid(), courseId: course ? course.id : null, courseName: fields.courseName.trim(), date: fields.date,
+    holes, status: 'complete', source: fields.source || 'manual', detail: fields.detail,
+    totalScore: fields.detail === 'total' ? fields.totalScore : null,
+    parTotal: fields.detail === 'total' ? fields.parTotal : null,
+    totalPutts: fields.detail === 'total' ? fields.totalPutts ?? null : null,
+    competition: !!fields.competition, createdAt: now, completedAt: now
+  };
+  db.rounds.push(r);
+  if (fields.detail === 'holes') rememberCourse(r);
+  else if (!course) { db.courses.push({ id: uid(), name: r.courseName, holes: null, updatedAt: now }); r.courseId = db.courses[db.courses.length - 1].id; }
+  persist();
+  return r;
+}
+
+// Same date, course and score is treated as the same round (re-importing a file is safe).
+export function isDuplicateRound(fields) {
+  const score = fields.detail === 'total' ? fields.totalScore : (fields.holes || []).reduce((a, h) => a + (h.score || 0), 0);
+  return db.rounds.some((r) => {
+    if (r.date !== fields.date || r.courseName.trim().toLowerCase() !== fields.courseName.trim().toLowerCase()) return false;
+    const rs = r.detail === 'total' ? r.totalScore : r.detail === 'holes' ? r.holes.reduce((a, h) => a + (h.score || 0), 0) : null;
+    return rs === score;
+  });
+}
+
+// ---- Launch monitor ----
+const shotKey = (s) => [s.carry, s.total, s.clubSpeed, s.ballSpeed, s.backspin, s.launch].join('|');
+
+export function launchShotExists(s) {
+  const k = shotKey(s);
+  return db.launchShots.some((x) => shotKey(x) === k);
+}
+
+export function addLaunchSession(session, shots) {
+  const sess = { id: uid(), createdAt: new Date().toISOString(), ...session };
+  db.launchSessions.push(sess);
+  shots.forEach((s, i) => db.launchShots.push({ id: uid(), sessionId: sess.id, seq: i + 1, ...s }));
+  persist();
+  return sess;
+}
+
+export function deleteLaunchSession(id) {
+  db.launchSessions = db.launchSessions.filter((s) => s.id !== id);
+  db.launchShots = db.launchShots.filter((s) => s.sessionId !== id);
+  persist();
 }
 
 // ---- Backup ----
