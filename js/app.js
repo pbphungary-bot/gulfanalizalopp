@@ -1,6 +1,7 @@
 import * as store from './store.js';
 import { CLUBS } from './store.js';
-import { holeStats, roundStats, careerStats, nextStep } from './stats.js';
+import { holeStats, roundStats, careerStats, nextStep, launchClubs, launchClubStats } from './stats.js';
+import { readTable, parseLaunch, parseRounds, groupLaunch, ROUNDS_TEMPLATE } from './importer.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -24,7 +25,13 @@ const ui = {
   profileErr: '',
   confirm: null,       // inline confirmation in place of browser dialogs
   pendingImport: null,
-  editYards: false
+  editYards: false,
+  perfView: null,      // 'past' | 'import' | null
+  past: null,
+  imp: null,
+  importErr: '',
+  lmClub: null,
+  lmPeriod: null
 };
 
 // ---------- Shot helpers ----------
@@ -64,7 +71,8 @@ function render() {
 
 function go(tab) {
   ui.tab = tab; ui.msg = ''; ui.confirm = null; ui.editYards = false;
-  if (tab !== 'perf') ui.viewRound = null;
+  if (tab !== 'perf') { ui.viewRound = null; ui.perfView = null; }
+  ui.importErr = '';
   render();
   $('#screens').scrollTop = 0;
 }
@@ -248,52 +256,74 @@ function renderStartRound() {
 }
 
 // ----- My Game -----
+const kv = (k, v) => `<div class="kv"><span class="k">${k}</span><span class="v2">${v}</span></div>`;
+const signed1 = (v) => (v == null ? '–' : (v >= 0 ? '+' : '') + v.toFixed(1));
+const SOURCE = { app: 'Recorded shot by shot', manual: 'Entered by hand', file: 'Imported from file' };
+
 function renderPerf() {
+  if (ui.perfView === 'past') return renderPastForm();
+  if (ui.perfView === 'import') return renderImportReview();
   if (ui.viewRound) return renderRoundDetail(ui.viewRound);
   const d = store.data();
   const c = careerStats();
   const rounds = d.rounds.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.createdAt.localeCompare(a.createdAt));
-  const kv = (k, v) => `<div class="kv"><span class="k">${k}</span><span class="v2">${v}</span></div>`;
+
+  const trend = c.recent > 1 ? `<div class="trend" role="img" aria-label="Scores per 18 holes, oldest to newest">${(() => {
+    const vals = c.trend.map((t) => t.per18); const lo = Math.min(...vals) - 2, hi = Math.max(...vals) + 2;
+    return c.trend.map((t) => `<span title="${fmtDate(t.date)}: ${t.per18.toFixed(0)}" style="height:${12 + ((t.per18 - lo) / (hi - lo)) * 60}px" class="${t.competition ? 'comp' : ''}"><i>${t.per18.toFixed(0)}</i></span>`).join('');
+  })()}</div><p class="legend">Oldest to newest, per 18 holes${c.trend.some((t) => t.competition) ? ' · lime = competition' : ''}</p>` : '';
 
   const statsCard = c.recent ? `
     <div class="card">
       <div class="row between"><h2>Last ${c.recent} round${c.recent > 1 ? 's' : ''}</h2>${LIVE}</div>
-      <p class="muted" style="font-size:12px">${c.holes} holes, normalised to 18.</p>
-      ${kv('Score per 18', fmt1(c.scorePer18) + ` (${c.toParPer18 >= 0 ? '+' : ''}${c.toParPer18.toFixed(1)})`)}
+      <p class="muted" style="font-size:12px">${c.holes} holes, normalised to 18. ${c.shotRounds < c.recent ? `Fairways, greens and penalties come from the ${c.shotRounds} round${c.shotRounds === 1 ? '' : 's'} recorded shot by shot.` : ''}</p>
+      ${trend}
+      ${kv('Score per 18', fmt1(c.scorePer18) + (c.toParPer18 != null ? ` (${signed1(c.toParPer18)})` : ''))}
       ${kv('Putts per 18', fmt1(c.puttsPer18))}
       ${kv('Fairways hit', c.fairwayPct != null ? c.fairwayPct.toFixed(0) + '%' : '–')}
       ${kv('Greens in regulation', c.girPct != null ? c.girPct.toFixed(0) + '%' : '–')}
       ${kv('Penalty strokes per 18', fmt1(c.penaltiesPer18))}
     </div>
-    <div class="card">
+    ${Object.keys(c.byPar).length ? `<div class="card">
       <h2>Scoring by par</h2>
       ${[3, 4, 5].filter((p) => c.byPar[p]).map((p) => kv(`Par ${p} <span class="muted" style="font-size:12px">(${c.byPar[p].n} holes)</span>`, (c.byPar[p].toPar / c.byPar[p].n >= 0 ? '+' : '') + (c.byPar[p].toPar / c.byPar[p].n).toFixed(2))).join('')}
-    </div>
-    <div class="card">
+    </div>` : ''}
+    ${c.putting.some((b) => b.n) ? `<div class="card">
       <h2>Putts by first-putt distance</h2>
-      ${c.putting.filter((b) => b.n).map((b) => kv(`${b.label} <span class="muted" style="font-size:12px">(${b.n})</span>`, (b.putts / b.n).toFixed(2))).join('') || '<p class="muted" style="font-size:14px">No putts recorded yet.</p>'}
-    </div>` : `
-    <div class="card"><h2>No completed rounds yet</h2><p class="muted">Finish a round on the Play tab and your statistics appear here.</p>
+      ${c.putting.filter((b) => b.n).map((b) => kv(`${b.label} <span class="muted" style="font-size:12px">(${b.n})</span>`, (b.putts / b.n).toFixed(2))).join('')}
+    </div>` : ''}` : `
+    <div class="card"><h2>No completed rounds yet</h2><p class="muted">Record a round on the Play tab, or add your earlier scores below so you don't start from scratch.</p>
       <div class="btns"><button class="btn" type="button" data-go="play">START A ROUND</button></div></div>`;
 
   $('#s-perf').innerHTML = `
     <h1>My game</h1>
     ${statsCard}
     <div class="card">
+      <h2>Add earlier golf</h2>
+      <p class="muted" style="font-size:14px">Enter past scores by hand, or import a CSV or Excel file of rounds or launch monitor shots.</p>
+      <div class="btns">
+        <button class="btn small" type="button" data-action="pastnew">ADD PAST SCORE</button>
+        <label class="btn sec small" style="display:flex;align-items:center;justify-content:center">IMPORT FILE<input type="file" accept=".csv,.xlsx,.xlsm,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" id="datafile" hidden></label>
+      </div>
+      <button class="linkbtn" type="button" data-action="template">Download a rounds template (CSV)</button>
+      <p class="err" aria-live="polite">${esc(ui.importErr || '')}</p>
+    </div>
+    ${renderLaunchCard()}
+    <div class="card">
       <h2>Rounds</h2>
       ${rounds.length ? rounds.map((r) => { const s = roundStats(r); return `
         <button class="roundrow" type="button" data-action="viewround" data-id="${r.id}">
-          <span><b>${esc(r.courseName)}</b><br><span class="muted" style="font-size:13px">${fmtDate(r.date)} · ${s.holesPlayed}/${r.holes.length} holes${r.status === 'in_progress' ? ' · in progress' : ''}</span></span>
-          <span class="s">${s.holesPlayed ? s.strokes : '–'}<span class="muted" style="font-size:13px;font-weight:600"> ${s.holesPlayed ? fmtToPar(s.toPar) : ''}</span></span>
+          <span><b>${esc(r.courseName)}</b>${r.competition ? ' <span class="tag">COMP</span>' : ''}<br><span class="muted" style="font-size:13px">${fmtDate(r.date)} · ${r.detail === 'total' ? r.holes.length + ' holes · score only' : `${s.holesPlayed}/${r.holes.length} holes`}${r.status === 'in_progress' ? ' · in progress' : ''}${r.source !== 'app' ? ' · ' + (r.source === 'file' ? 'imported' : 'entered') : ''}</span></span>
+          <span class="s">${s.holesPlayed ? s.strokes : '–'}<span class="muted" style="font-size:13px;font-weight:600"> ${s.holesPlayed && s.toPar != null ? fmtToPar(s.toPar) : ''}</span></span>
         </button>`; }).join('') : '<p class="muted" style="font-size:14px">Nothing recorded yet.</p>'}
     </div>
     <div class="card dim">
       <div class="row between"><h2>Strokes gained</h2>${DEMO}</div>
-      <p class="muted" style="font-size:14px">Milestone 2 turns your saved shots into strokes gained for off the tee, approach, around the green and putting. The shot data you record now is already in the right shape for it.</p>
+      <p class="muted" style="font-size:14px">A later milestone turns rounds recorded shot by shot into strokes gained for off the tee, approach, around the green and putting.</p>
     </div>
     <div class="card">
       <h2>Your data</h2>
-      <p class="muted" style="font-size:14px">${d.rounds.length} rounds and ${d.shots.length} shots are stored on this device. Download a backup now and then, especially before clearing browser data.</p>
+      <p class="muted" style="font-size:14px">${d.rounds.length} rounds, ${d.shots.length} course shots and ${d.launchShots.length} launch monitor shots are stored on this device. Download a backup now and then, especially before clearing browser data.</p>
       <div class="btns">
         <button class="btn sec small" type="button" data-action="export">DOWNLOAD BACKUP</button>
         <label class="btn sec small" style="display:flex;align-items:center;justify-content:center">RESTORE<input type="file" accept="application/json,.json" id="importfile" hidden></label>
@@ -302,6 +332,246 @@ function renderPerf() {
         <div class="btns"><button class="btn" type="button" data-action="importyes">REPLACE MY DATA</button><button class="btn sec" type="button" data-action="importno">CANCEL</button></div>` : ''}
       <p class="toast" aria-live="polite">${esc(ui.msg)}</p>
     </div>`;
+}
+
+// ----- Launch monitor per-club view -----
+function renderLaunchCard() {
+  const clubs = launchClubs();
+  const names = CLUBS.filter((c) => clubs[c]);
+  if (!names.length) return '';
+  if (!ui.lmClub || !clubs[ui.lmClub]) ui.lmClub = names[0];
+  const period = ui.lmPeriod ?? null;
+  const st = launchClubStats(ui.lmClub, period);
+  const prev = period ? launchClubStats(ui.lmClub, period, period) : null;
+  const m = (label, x, unit, dp = 1, key) => {
+    if (!x.n) return '';
+    const p = prev && prev[key] && prev[key].n ? prev[key].avg : null;
+    const delta = p != null ? ` <span class="muted" style="font-size:12px">(${signed1(x.avg - p)} vs previous)</span>` : '';
+    return kv(label, `${x.avg.toFixed(dp)} ${unit}${delta}`);
+  };
+  const sessions = store.data().launchSessions.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return `
+    <div class="card">
+      <div class="row between"><h2>Launch monitor</h2>${LIVE}</div>
+      <div class="chips">${names.map((c) => `<button type="button" class="chip" data-action="lmclub" data-v="${c}" aria-pressed="${c === ui.lmClub}">${c} <small class="muted">${clubs[c]}</small></button>`).join('')}</div>
+      <div class="chips">${[[30, 'Last 30 days'], [90, 'Last 90 days'], [null, 'All time']].map(([v, l]) => `<button type="button" class="chip" data-action="lmperiod" data-v="${v ?? ''}" aria-pressed="${period === v}">${l}</button>`).join('')}</div>
+      ${st.n ? `
+        <div class="stats">
+          <div class="card stat"><span class="eyebrow">Carry</span><span class="v">${st.carry.median.toFixed(0)} m</span><span class="n">median · avg ${st.carry.avg.toFixed(1)}</span></div>
+          <div class="card stat"><span class="eyebrow">Spread</span><span class="v">${st.carrySpread ? (st.carrySpread[1] - st.carrySpread[0]).toFixed(0) + ' m' : '–'}</span><span class="n">${st.carrySpread ? `80% land ${st.carrySpread[0].toFixed(0)}–${st.carrySpread[1].toFixed(0)} m` : 'needs 3+ shots'}</span></div>
+        </div>
+        <p class="muted" style="font-size:13px">${st.n} shots${period ? ' in this period' : ''}.${prev && prev.n ? ` Previous ${period} days: ${prev.n} shots.` : ''}</p>
+        ${m('Total', st.total, 'm', 1, 'total')}
+        ${m('Club speed', st.clubSpeed, 'mph', 1, 'clubSpeed')}
+        ${m('Ball speed', st.ballSpeed, 'mph', 1, 'ballSpeed')}
+        ${m('Smash factor', st.smash, '', 2, 'smash')}
+        ${m('Launch', st.launch, '°', 1, 'launch')}
+        ${m('Backspin', st.backspin, 'rpm', 0, 'backspin')}
+        ${m('Apex', st.apex, 'm', 1, 'apex')}
+        ${st.toTarget.n ? kv('Distance from target', `${st.toTarget.avg.toFixed(1)} m <span class="muted" style="font-size:12px">(${st.toTarget.n} shots)</span>`) : ''}
+        ${st.signed ? m('Sidespin', st.sidespin, 'rpm', 0, 'sidespin') : `<p class="muted" style="font-size:12px">Left/right direction isn't in this data (path, face and sidespin have no draw/fade or in/out sign), so miss patterns aren't shown.</p>`}
+        ${prev && prev.n ? '<p class="muted" style="font-size:12px">With fewer than about 20 shots per period, differences of a few metres or mph are usually normal variation.</p>' : ''}`
+      : `<p class="muted" style="font-size:14px">No ${esc(ui.lmClub)} shots in this period.</p>`}
+      <h2 style="margin-top:8px">Sessions</h2>
+      ${sessions.map((s) => { const n = store.data().launchShots.filter((x) => x.sessionId === s.id).length; return `
+        <div class="kv"><span class="k">${fmtDate(s.date)} · ${esc(s.device || 'Launch monitor')}<br><span style="font-size:12px">${n} shots${s.fileName ? ' · ' + esc(s.fileName) : ''}</span></span>
+        ${ui.confirm === 'dels:' + s.id ? `<span><button class="linkbtn" type="button" data-action="delsessyes" data-id="${s.id}" style="color:var(--bad)">Delete</button> <button class="linkbtn" type="button" data-action="cancel">Keep</button></span>`
+          : `<button class="linkbtn" type="button" data-action="delsess" data-id="${s.id}">Remove</button>`}</div>`; }).join('')}
+    </div>`;
+}
+
+// ----- Past score entry -----
+function renderPastForm() {
+  const f = ui.past;
+  const courses = store.data().courses.map((c) => c.name);
+  const holes = Array.from({ length: f.holeCount }, (_, i) => i + 1);
+  $('#s-perf').innerHTML = `
+    <button class="linkbtn" type="button" data-action="pastcancel">‹ My game</button>
+    <h1>Add a past round</h1>
+    <div class="card">
+      <div class="field"><label class="label" for="pcourse">Course</label>
+        <input class="input" id="pcourse" list="pcourselist" value="${esc(f.courseName)}" placeholder="Course name" autocomplete="off">
+        <datalist id="pcourselist">${courses.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="pdate">Date</label><input class="input" id="pdate" type="date" value="${esc(f.date)}"></div>
+        <div class="field"><span class="label">Holes</span><div class="chips">${[9, 18].map((n) => `<button type="button" class="chip" data-action="phc" data-v="${n}" aria-pressed="${f.holeCount === n}">${n}</button>`).join('')}</div></div>
+      </div>
+      <span class="label">What do you have?</span>
+      <div class="chips">${[['total', 'Total score'], ['holes', 'Hole by hole']].map(([v, l]) => `<button type="button" class="chip" data-action="pdetail" data-v="${v}" aria-pressed="${f.detail === v}">${l}</button>`).join('')}</div>
+      ${f.detail === 'total' ? `
+        <div class="grid2">
+          <div class="field"><label class="label" for="pscore">Score</label><input class="input" id="pscore" inputmode="numeric" value="${esc(f.totalScore ?? '')}" placeholder="${f.holeCount === 9 ? 'e.g. 44' : 'e.g. 88'}"></div>
+          <div class="field"><label class="label" for="ppar">Course par</label><input class="input" id="ppar" inputmode="numeric" value="${esc(f.parTotal ?? '')}"></div>
+        </div>
+        <div class="field"><label class="label" for="pputts">Putts (optional)</label><input class="input" id="pputts" inputmode="numeric" value="${esc(f.totalPutts ?? '')}"></div>`
+      : `<table class="sc entry"><tr><th>Hole</th><th>Par</th><th>Score</th><th>Putts</th></tr>
+        ${holes.map((n) => { const h = f.holes[n - 1] || {}; return `<tr><td>${n}</td>
+          <td><input class="cell" data-h="${n}" data-k="par" inputmode="numeric" value="${esc(h.par ?? '')}" aria-label="Hole ${n} par"></td>
+          <td><input class="cell" data-h="${n}" data-k="score" inputmode="numeric" value="${esc(h.score ?? '')}" aria-label="Hole ${n} score"></td>
+          <td><input class="cell" data-h="${n}" data-k="putts" inputmode="numeric" value="${esc(h.putts ?? '')}" aria-label="Hole ${n} putts"></td></tr>`; }).join('')}
+        </table>`}
+      <div class="chips"><button type="button" class="chip" data-action="pcomp" aria-pressed="${f.competition}">Competition round</button></div>
+      <div class="btns"><button class="btn" type="button" data-action="pastsave">SAVE ROUND</button><button class="btn sec" type="button" data-action="pastsaveadd">SAVE + ADD ANOTHER</button></div>
+      <p class="err" aria-live="polite">${esc(ui.msg)}</p>
+    </div>
+    <p class="muted" style="font-size:13px">Tip: copy scores from your Golfigo record or old scorecards. Pars are remembered per course.</p>`;
+}
+
+function newPast(prev) {
+  const p = store.data().player;
+  const courseName = prev ? prev.courseName : (p.homeCourse || '');
+  const f = { courseName, date: prev ? prev.date : todayISO(), holeCount: prev ? prev.holeCount : 18, detail: prev ? prev.detail : 'total', totalScore: null, parTotal: null, totalPutts: null, holes: [], competition: false };
+  fillPars(f);
+  return f;
+}
+
+function fillPars(f) {
+  const c = f.courseName && store.findCourse(f.courseName);
+  f.holes = Array.from({ length: f.holeCount }, (_, i) => {
+    const known = c && c.holes && c.holes.find((h) => h.n === i + 1);
+    const cur = f.holes[i] || {};
+    return { n: i + 1, par: cur.par ?? (known ? known.par : null), score: cur.score ?? null, putts: cur.putts ?? null };
+  });
+  if (f.parTotal == null) {
+    const known = f.holes.every((h) => h.par);
+    f.parTotal = known ? f.holes.reduce((a, h) => a + h.par, 0) : f.holeCount === 9 ? 36 : 72;
+  }
+}
+
+function readPast() {
+  const f = ui.past;
+  const v = (id) => { const el = $('#' + id); return el ? el.value.trim() : null; };
+  const n = (x) => (x === '' || x == null ? null : Number(x));
+  if ($('#pcourse')) { const nc = v('pcourse'); if (nc !== f.courseName) { f.courseName = nc; f.parTotal = null; fillPars(f); } }
+  if ($('#pdate')) f.date = v('pdate');
+  if ($('#pscore')) { f.totalScore = n(v('pscore')); f.parTotal = n(v('ppar')); f.totalPutts = n(v('pputts')); }
+  $$('.cell[data-h]').forEach((el) => { const h = f.holes[Number(el.dataset.h) - 1]; h[el.dataset.k] = n(el.value.trim()); });
+}
+
+function savePast(again) {
+  readPast();
+  const f = ui.past;
+  const fail = (m) => { ui.msg = m; render(); };
+  if (!f.courseName) return fail('Add the course name.');
+  if (!f.date) return fail('Add the date.');
+  const bad = (x, lo, hi) => x == null || isNaN(x) || x < lo || x > hi;
+  const fields = { courseName: f.courseName, date: f.date, holeCount: f.holeCount, detail: f.detail, competition: f.competition, source: 'manual' };
+  if (f.detail === 'total') {
+    const lo = f.holeCount === 9 ? 25 : 50, hi = f.holeCount === 9 ? 90 : 180;
+    if (bad(f.totalScore, lo, hi)) return fail(`Enter a score between ${lo} and ${hi}.`);
+    if (bad(f.parTotal, f.holeCount * 3, f.holeCount * 5)) return fail('Enter the course par.');
+    if (f.totalPutts != null && bad(f.totalPutts, 0, f.holeCount * 6)) return fail('Putts look wrong.');
+    Object.assign(fields, { totalScore: f.totalScore, parTotal: f.parTotal, totalPutts: f.totalPutts });
+  } else {
+    for (const h of f.holes) {
+      if (bad(h.score, 1, 15)) return fail(`Enter a score for hole ${h.n}.`);
+      if (h.par != null && bad(h.par, 3, 6)) return fail(`Par on hole ${h.n} should be 3, 4 or 5.`);
+      if (h.putts != null && bad(h.putts, 0, h.score)) return fail(`Putts on hole ${h.n} look wrong.`);
+    }
+    fields.holes = f.holes.map((h) => ({ n: h.n, par: h.par || 4, score: h.score, putts: h.putts }));
+  }
+  if (store.isDuplicateRound(fields)) return fail('You already have this round (same course, date and score).');
+  store.addPastRound(fields);
+  store.requestPersistence();
+  if (again) { ui.past = newPast(f); ui.msg = `Saved ${f.courseName}, ${fmtDate(f.date)}. Add the next one.`; render(); $('#screens').scrollTop = 0; }
+  else { ui.perfView = null; ui.past = null; ui.msg = 'Round saved.'; render(); }
+}
+
+// ----- File import review -----
+async function handleDataFile(file) {
+  ui.importErr = '';
+  try {
+    const sheets = await readTable(file);
+    const lm = parseLaunch(sheets);
+    if (lm) {
+      const groups = groupLaunch(lm.shots);
+      const dupes = lm.shots.filter((s) => store.launchShotExists(s)).length;
+      const fileDate = lm.shots.map((s) => s.date).find(Boolean);
+      ui.imp = { kind: 'launch', fileName: file.name, groups, dupes, total: lm.shots.length, date: (typeof fileDate === 'string' && /^\d{4}-\d\d-\d\d/.test(fileDate)) ? fileDate.slice(0, 10) : todayISO(), device: 'Simulator', signed: lm.shots.some((s) => s.signed) };
+    } else {
+      const rd = parseRounds(sheets);
+      if (!rd) throw new Error('I couldn\'t find launch monitor columns (Carry, Ball speed…) or round columns (Date, Course, Score) in this file.');
+      ui.imp = { kind: 'rounds', fileName: file.name, rounds: rd.rounds.map((r) => ({ ...r, dup: store.isDuplicateRound(r) })), problems: rd.problems };
+    }
+    ui.perfView = 'import';
+  } catch (e) {
+    console.error(e);
+    ui.importErr = e.message || 'Could not read that file.';
+  }
+  render();
+  $('#screens').scrollTop = 0;
+}
+
+function renderImportReview() {
+  const im = ui.imp;
+  if (im.kind === 'launch') {
+    const newCount = im.groups.reduce((a, g) => a + (g.skip ? 0 : g.shots.length), 0);
+    $('#s-perf').innerHTML = `
+      <button class="linkbtn" type="button" data-action="impcancel">‹ Cancel import</button>
+      <h1>Import launch monitor shots</h1>
+      <p class="muted">${esc(im.fileName)}: ${im.total} shots in ${im.groups.length} group${im.groups.length > 1 ? 's' : ''}.${im.dupes ? ` ${im.dupes} are already saved and will be skipped.` : ''}</p>
+      <div class="card">
+        <div class="grid2">
+          <div class="field"><label class="label" for="lmdate">Session date</label><input class="input" id="lmdate" type="date" value="${esc(im.date)}"></div>
+          <div class="field"><label class="label" for="lmdevice">Device</label><input class="input" id="lmdevice" value="${esc(im.device)}"></div>
+        </div>
+        ${im.signed ? '' : '<p class="muted" style="font-size:13px">This file has no left/right direction for path, face or sidespin, so those are saved as sizes only.</p>'}
+      </div>
+      ${im.groups.map((g, gi) => `
+        <div class="card">
+          <div class="row between"><h2>${esc(g.name)}</h2><span class="muted" style="font-size:14px">${g.shots.length} shots</span></div>
+          <p class="muted" style="font-size:13px">Avg carry ${g.avgCarry != null ? g.avgCarry.toFixed(0) + ' m' : '–'} · club speed ${g.avgClubSpeed != null ? g.avgClubSpeed.toFixed(0) + ' mph' : '–'}</p>
+          <span class="label">Which club?</span>
+          <div class="chips">${CLUBS.filter((c) => c !== 'Putter').map((c) => `<button type="button" class="chip" data-action="gclub" data-g="${gi}" data-v="${c}" aria-pressed="${g.club === c && !g.skip}">${c}</button>`).join('')}
+            <button type="button" class="chip" data-action="gskip" data-g="${gi}" aria-pressed="${!!g.skip}">Skip group</button></div>
+          <details><summary class="label">Show shots</summary>
+            <div style="overflow-x:auto"><table class="sc"><tr><th>#</th><th>Carry</th><th>Total</th><th>Club</th><th>Ball</th><th>Smash</th><th>Launch</th><th>Spin</th></tr>
+            ${g.shots.map((s, i) => `<tr class="${store.launchShotExists(s) ? 'dupe' : ''}"><td>${i + 1}</td><td>${s.carry ?? '–'}</td><td>${s.total ?? '–'}</td><td>${s.clubSpeed ?? '–'}</td><td>${s.ballSpeed ?? '–'}</td><td>${s.smash ?? '–'}</td><td>${s.launch ?? '–'}</td><td>${s.backspin ?? '–'}</td></tr>`).join('')}
+            </table></div></details>
+        </div>`).join('')}
+      <div class="btns"><button class="btn" type="button" data-action="impsave">SAVE ${newCount} SHOTS</button></div>
+      <p class="err" aria-live="polite">${esc(ui.msg)}</p>`;
+    return;
+  }
+  const fresh = im.rounds.filter((r) => !r.dup);
+  $('#s-perf').innerHTML = `
+    <button class="linkbtn" type="button" data-action="impcancel">‹ Cancel import</button>
+    <h1>Import rounds</h1>
+    <p class="muted">${esc(im.fileName)}: ${im.rounds.length} rounds found${im.rounds.length - fresh.length ? `, ${im.rounds.length - fresh.length} already saved` : ''}.</p>
+    ${im.problems.length ? `<div class="card"><h2>Rows skipped</h2>${im.problems.slice(0, 8).map((p) => `<p class="err">${esc(p)}</p>`).join('')}${im.problems.length > 8 ? `<p class="muted">…and ${im.problems.length - 8} more</p>` : ''}</div>` : ''}
+    <div class="card">
+      ${im.rounds.map((r) => `<div class="kv"><span class="k">${esc(r.courseName)}${r.competition ? ' <span class="tag">COMP</span>' : ''}<br><span style="font-size:12px">${fmtDate(r.date)} · ${r.holeCount} holes${r.detail === 'holes' ? ' · hole by hole' : ''}${r.parGuessed ? ' · par assumed ' + r.parTotal : ''}${r.dup ? ' · already saved' : ''}</span></span>
+        <span class="v2">${r.detail === 'total' ? r.totalScore : r.holes.reduce((a, h) => a + h.score, 0)}</span></div>`).join('')}
+    </div>
+    <div class="btns"><button class="btn" type="button" data-action="impsave" ${fresh.length ? '' : 'disabled'}>SAVE ${fresh.length} ROUNDS</button></div>
+    <p class="err" aria-live="polite">${esc(ui.msg)}</p>`;
+}
+
+function saveImport() {
+  const im = ui.imp;
+  if (im.kind === 'launch') {
+    const date = $('#lmdate').value || todayISO();
+    const device = $('#lmdevice').value.trim() || 'Launch monitor';
+    const missing = im.groups.find((g) => !g.skip && !g.club);
+    if (missing) { ui.msg = `Pick a club for "${missing.name}" or skip it.`; return render(); }
+    const shots = [];
+    for (const g of im.groups) if (!g.skip) for (const s of g.shots) {
+      if (store.launchShotExists(s)) continue;
+      const { date: _d, ...rest } = s;
+      shots.push({ ...rest, club: g.club });
+    }
+    if (!shots.length) { ui.msg = 'Nothing new to save.'; return render(); }
+    store.addLaunchSession({ date, device, source: 'file', fileName: im.fileName }, shots);
+    ui.lmClub = shots[0].club; ui.lmPeriod = null;
+    ui.msg = `Saved ${shots.length} launch monitor shots.`;
+  } else {
+    let n = 0;
+    for (const r of im.rounds) if (!r.dup && !store.isDuplicateRound(r)) { store.addPastRound(r); n++; }
+    ui.msg = `Imported ${n} rounds.`;
+  }
+  store.requestPersistence();
+  ui.imp = null; ui.perfView = null;
+  render(); $('#screens').scrollTop = 0;
 }
 
 function renderRoundDetail(id) {
@@ -315,31 +585,31 @@ function renderRoundDetail(id) {
     return `<table class="sc"><tr><th>Hole</th>${hs.map((h) => `<th>${h.hole.n}</th>`).join('')}</tr>
       <tr><th>Par</th>${hs.map((h) => `<td>${h.hole.par}</td>`).join('')}</tr>
       <tr><th>Score</th>${hs.map((h) => `<td class="${cls(h)}">${h.holed ? h.strokes : '–'}</td>`).join('')}</tr>
-      <tr><th>Putts</th>${hs.map((h) => `<td>${h.holed ? h.putts : '–'}</td>`).join('')}</tr></table>`;
+      <tr><th>Putts</th>${hs.map((h) => `<td>${h.holed && h.puttsKnown ? h.putts : '–'}</td>`).join('')}</tr></table>`;
   };
-  const kv = (k, v) => `<div class="kv"><span class="k">${k}</span><span class="v2">${v}</span></div>`;
+  const isShots = r.detail === 'shots';
   $('#s-perf').innerHTML = `
     <button class="linkbtn" type="button" data-action="back">‹ All rounds</button>
     <h1>${esc(r.courseName)}</h1>
-    <p class="muted">${fmtDate(r.date)}${r.status === 'in_progress' ? ' · in progress' : ''}</p>
+    <p class="muted">${fmtDate(r.date)}${r.status === 'in_progress' ? ' · in progress' : ''}${r.competition ? ' · competition' : ''} · ${SOURCE[r.source] || 'Imported'}</p>
     <div class="stats">
-      <div class="card stat"><span class="eyebrow">Score</span><span class="v">${s.holesPlayed ? s.strokes : '–'}</span><span class="n">${s.holesPlayed ? fmtToPar(s.toPar) + ' thru ' + s.holesPlayed : 'No holes finished'}</span></div>
-      <div class="card stat"><span class="eyebrow">Putts</span><span class="v">${s.putts}</span><span class="n">${s.shotsLogged} shots logged</span></div>
+      <div class="card stat"><span class="eyebrow">Score</span><span class="v">${s.holesPlayed ? s.strokes : '–'}</span><span class="n">${s.holesPlayed ? (s.toPar != null ? fmtToPar(s.toPar) : '') + (r.detail === 'total' ? ` · ${r.holes.length} holes` : ' thru ' + s.holesPlayed) : 'No holes finished'}</span></div>
+      <div class="card stat"><span class="eyebrow">Putts</span><span class="v">${s.puttsHoles ? s.putts : '–'}</span><span class="n">${isShots ? s.shotsLogged + ' shots logged' : s.puttsHoles ? '' : 'Not recorded'}</span></div>
     </div>
-    <div class="card" style="overflow-x:auto">${half(1, 9)}${half(10, 18)}</div>
-    <div class="card">
+    ${r.detail !== 'total' ? `<div class="card" style="overflow-x:auto">${half(1, 9)}${half(10, 18)}</div>` : ''}
+    ${isShots ? `<div class="card">
       ${kv('Fairways', s.fairwayChances ? `${s.fairways}/${s.fairwayChances}` : '–')}
       ${kv('Greens in regulation', `${s.gir}/${s.holesPlayed}`)}
       ${kv('Penalty strokes', s.penalties)}
-    </div>
+    </div>` : ''}
     ${s.holes.filter((h) => h.shots.length).map((h) => `
       <div class="card"><div class="row between"><h2>Hole ${h.hole.n} · par ${h.hole.par}${h.hole.yards ? ' · ' + h.hole.yards + ' yd' : ''}</h2><b>${h.holed ? h.strokes : '…'}</b></div>
       <ol class="shotlist">${h.shots.map((x) => `<li><span class="n">${x.seq}</span><span class="t">${esc(x.club)} · ${esc(x.startLie)} ${distLabel(x.startLie, x.startDist)} → ${esc(x.endLie)} ${x.endLie === 'holed' ? '' : distLabel(x.endLie, x.endDist)}${x.penalty ? ` <span class="neg">+${x.penalty} pen</span>` : ''}</span></li>`).join('')}</ol></div>`).join('')}
     <div class="btns">
-      ${r.status === 'complete' ? `<button class="btn sec" type="button" data-action="reopen" data-id="${r.id}">EDIT ROUND</button>` : `<button class="btn sec" type="button" data-go="play">CONTINUE</button>`}
+      ${!isShots ? '' : r.status === 'complete' ? `<button class="btn sec" type="button" data-action="reopen" data-id="${r.id}">EDIT ROUND</button>` : `<button class="btn sec" type="button" data-go="play">CONTINUE</button>`}
       <button class="btn danger" type="button" data-action="delround" data-id="${r.id}">DELETE</button>
     </div>
-    ${ui.confirm === 'del' ? `<div class="card" style="border-color:var(--bad)"><p>Delete this round and all ${s.shotsLogged} shots? This cannot be undone.</p>
+    ${ui.confirm === 'del' ? `<div class="card" style="border-color:var(--bad)"><p>Delete this round${isShots ? ` and all ${s.shotsLogged} shots` : ''}? This cannot be undone.</p>
       <div class="btns"><button class="btn danger" type="button" data-action="delyes" data-id="${r.id}">DELETE ROUND</button><button class="btn sec" type="button" data-action="cancel">KEEP IT</button></div></div>` : ''}
     <p class="err" aria-live="polite">${esc(ui.msg)}</p>`;
 }
@@ -481,19 +751,43 @@ document.addEventListener('click', (e) => {
       try { store.importJSON(ui.pendingImport.text); ui.msg = 'Backup restored.'; } catch (err) { ui.msg = err.message; }
       ui.pendingImport = null; render(); break;
     case 'importno': ui.pendingImport = null; ui.msg = ''; render(); break;
+    case 'pastnew': ui.past = newPast(); ui.perfView = 'past'; ui.msg = ''; render(); $('#screens').scrollTop = 0; break;
+    case 'pastcancel': ui.past = null; ui.perfView = null; ui.msg = ''; render(); break;
+    case 'phc': readPast(); ui.past.holeCount = Number(t.dataset.v); ui.past.parTotal = null; fillPars(ui.past); render(); break;
+    case 'pdetail': readPast(); ui.past.detail = t.dataset.v; render(); break;
+    case 'pcomp': readPast(); ui.past.competition = !ui.past.competition; render(); break;
+    case 'pastsave': savePast(false); break;
+    case 'pastsaveadd': savePast(true); break;
+    case 'impcancel': ui.imp = null; ui.perfView = null; ui.msg = ''; render(); break;
+    case 'gclub': { const g = ui.imp.groups[Number(t.dataset.g)]; g.club = t.dataset.v; g.skip = false; ui.msg = ''; keepScroll(render); break; }
+    case 'gskip': { const g = ui.imp.groups[Number(t.dataset.g)]; g.skip = !g.skip; keepScroll(render); break; }
+    case 'impsave': ui.imp.date = $('#lmdate')?.value || ui.imp.date; saveImport(); break;
+    case 'lmclub': ui.lmClub = t.dataset.v; keepScroll(render); break;
+    case 'lmperiod': ui.lmPeriod = t.dataset.v ? Number(t.dataset.v) : null; keepScroll(render); break;
+    case 'delsess': ui.confirm = 'dels:' + t.dataset.id; keepScroll(render); break;
+    case 'delsessyes': store.deleteLaunchSession(t.dataset.id); ui.confirm = null; keepScroll(render); break;
+    case 'template': download('golf-rounds-template.csv', ROUNDS_TEMPLATE, 'text/csv'); break;
     case 'export': {
-      const blob = new Blob([store.exportJSON()], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url; link.download = `golf-coach-backup-${todayISO()}.json`;
-      document.body.appendChild(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      download(`golf-coach-backup-${todayISO()}.json`, store.exportJSON(), 'application/json');
       ui.msg = 'Backup downloaded.'; render(); break;
     }
   }
 });
 
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = document.createElement('a');
+  link.href = url; link.download = name;
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function keepScroll(fn) {
+  const el = $('#screens'); const top = el.scrollTop; fn(); el.scrollTop = top;
+}
+
 document.addEventListener('change', async (e) => {
+  if (e.target.id === 'datafile' && e.target.files[0]) return handleDataFile(e.target.files[0]);
   if (e.target.id !== 'importfile' || !e.target.files[0]) return;
   try {
     const text = await e.target.files[0].text();
