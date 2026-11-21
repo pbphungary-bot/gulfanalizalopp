@@ -53,7 +53,14 @@ Later modules plug into the same document: `swingVideos[]`, `workouts[]`.
    - CSV import with column mapping (date, course, score, optional per-hole scores and
      putts), with a downloadable template. Covers spreadsheets and apps that do export.
    - Course data: par, length, course rating and slope entered once per course and reused.
-   - **Read screenshots and photos** (scorecards from other apps, launch monitor shot
+   - **Launch monitor file import (primary path).** CSV or Excel (.xlsx, read on the
+     device). Columns are matched by header name, e.g. Group, Shot #, Carry (m),
+     Total (m), Club speed (mph), Ball speed (mph), Path (deg), Face (deg), Smash,
+     Launch (deg), Backspin (rpm), Sidespin (rpm), Apex (m), To target (m), Source,
+     Review note; unknown columns can be mapped by hand. The user picks a club per group,
+     and blank cells stay blank. Where a file has no direction for path, face or sidespin,
+     the values are stored as unsigned and left/right stats are not shown for them.
+   - **Read screenshots and photos (fallback)** (scorecards from other apps, launch monitor shot
      history screens). Flow: pick one or more images → each is read by Claude vision into
      a fixed JSON shape → rows from all images are merged and overlapping duplicates
      dropped (same carry, total, speeds and spin) → a review table shows every row, with
