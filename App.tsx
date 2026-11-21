@@ -1,9 +1,9 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getProfile } from './src/db';
 import type { Profile } from './src/domain/types';
@@ -17,25 +17,39 @@ import { Play } from './src/screens/Play';
 import { RoundScreen } from './src/screens/Round';
 import { RoundReview } from './src/screens/RoundReview';
 import { Session } from './src/screens/Session';
-import { colors } from './src/theme';
+import { ThemeProvider, useTheme } from './src/theme';
 
 const Tab = createBottomTabNavigator<TabParams>();
 const Stack = createNativeStackNavigator<RootStackParams>();
 
-const navTheme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.bg, primary: colors.primary } };
+const GLYPH: Record<keyof TabParams, string> = { Home: '◉', Coach: '◈', Play: '⛳', MyGame: '▥' };
 
 function Tabs({ profile }: { profile: Profile }) {
+  const { c } = useTheme();
   return (
-    <Tab.Navigator screenOptions={{ tabBarActiveTintColor: colors.primary, tabBarLabelStyle: { fontSize: 13 }, tabBarStyle: { minHeight: 60 } }}>
-      <Tab.Screen name="Home">{() => <Home name={profile.name} />}</Tab.Screen>
-      <Tab.Screen name="Coach">{() => <Coach profile={profile} />}</Tab.Screen>
-      <Tab.Screen name="Play" component={Play} />
-      <Tab.Screen name="MyGame" component={MyGame} options={{ title: 'My Game' }} />
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarActiveTintColor: c.accent,
+        tabBarInactiveTintColor: c.muted,
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
+        tabBarStyle: { minHeight: 62, backgroundColor: c.card, borderTopColor: c.line },
+        tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>{GLYPH[route.name]}</Text>,
+        headerStyle: { backgroundColor: c.bg },
+        headerTintColor: c.text,
+        headerShadowVisible: false,
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="Home">{() => <Home profile={profile} />}</Tab.Screen>
+      <Tab.Screen name="Coach" options={{ title: 'AI Coach' }}>{() => <Coach profile={profile} />}</Tab.Screen>
+      <Tab.Screen name="Play" component={Play} options={{ title: 'Play' }} />
+      <Tab.Screen name="MyGame" component={MyGame} options={{ title: 'Performance' }} />
     </Tab.Navigator>
   );
 }
 
-export default function App() {
+function Root() {
+  const { c, isDark } = useTheme();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -45,26 +59,31 @@ export default function App() {
       .finally(() => setReady(true));
   }, []);
 
+  const navTheme = useMemo(() => {
+    const base = isDark ? DarkTheme : DefaultTheme;
+    return { ...base, colors: { ...base.colors, background: c.bg, card: c.bg, text: c.text, border: c.line, primary: c.accent } };
+  }, [c, isDark]);
+
   if (!ready) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg }}>
+        <ActivityIndicator color={c.accent} />
       </View>
     );
   }
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       {!profile ? (
         <Onboarding onDone={setProfile} />
       ) : (
         <NavigationContainer theme={navTheme}>
-          <Stack.Navigator>
+          <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: c.bg }, headerTintColor: c.text, headerShadowVisible: false }}>
             <Stack.Screen name="Tabs" options={{ headerShown: false }}>
               {() => <Tabs profile={profile} />}
             </Stack.Screen>
-            <Stack.Screen name="Round" component={RoundScreen} options={{ title: 'Round', headerBackVisible: true }} />
+            <Stack.Screen name="Round" component={RoundScreen} options={{ title: 'Round' }} />
             <Stack.Screen name="RoundReview" component={RoundReview} options={{ title: 'Round review' }} />
             <Stack.Screen name="Session" component={Session} options={{ title: 'Session' }} />
             <Stack.Screen name="Drill" component={DrillScreen} options={{ title: 'Log drill' }} />
@@ -72,5 +91,13 @@ export default function App() {
         </NavigationContainer>
       )}
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <Root />
+    </ThemeProvider>
   );
 }

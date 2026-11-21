@@ -7,7 +7,7 @@ import { addShot, deleteLastShot, getRound, shotsForRound } from '../db';
 import { expectedStrokes } from '../domain/strokesGained';
 import type { Lie, Round, Shot } from '../domain/types';
 import type { RootStackParams } from '../navigation';
-import { colors } from '../theme';
+import { useTheme } from '../theme';
 
 const CLUBS = ['Driver', '3W', '5W', 'Hybrid', '4i', '5i', '6i', '7i', '8i', '9i', 'PW', 'GW', 'SW', 'LW', 'Putter'];
 const END_LIES: Lie[] = ['fairway', 'rough', 'sand', 'recovery', 'green', 'holed'];
@@ -17,6 +17,7 @@ const END_LIES: Lie[] = ['fairway', 'rough', 'sand', 'recovery', 'green', 'holed
  * shot, so you normally only pick a club, where it ended up, and a distance.
  */
 export function RoundScreen() {
+  const { c } = useTheme();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { params } = useRoute<RouteProp<RootStackParams, 'Round'>>();
   const [round, setRound] = useState<Round | null>(null);
@@ -108,7 +109,7 @@ export function RoundScreen() {
     <Screen>
       <Row style={{ justifyContent: 'space-between' }}>
         <H1>Hole {hole}</H1>
-        <Text style={{ fontSize: 16, color: colors.muted }}>{round?.course} · {total} strokes</Text>
+        <Text style={{ fontSize: 16, color: c.muted }}>{round?.course} · {total} strokes</Text>
       </Row>
 
       {!holeStarted && (
@@ -130,8 +131,8 @@ export function RoundScreen() {
         </H2>
         <Body muted>Club</Body>
         <ChipRow>
-          {CLUBS.map((c) => (
-            <Chip key={c} label={c} selected={club === c} onPress={() => setClub(c)} />
+          {CLUBS.map((cl) => (
+            <Chip key={cl} label={cl} selected={club === cl} onPress={() => setClub(cl)} />
           ))}
         </ChipRow>
         <Body muted>Where did it finish?</Body>

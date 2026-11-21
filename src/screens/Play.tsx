@@ -7,10 +7,11 @@ import { createRound, listRounds, shotsForRound } from '../db';
 import { roundScore } from '../domain/strokesGained';
 import type { Round } from '../domain/types';
 import type { RootStackParams } from '../navigation';
-import { colors } from '../theme';
+import { useTheme } from '../theme';
 import { useLoad } from '../useLoad';
 
 export function Play() {
+  const { c } = useTheme();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const [course, setCourse] = useState('');
   const [holes, setHoles] = useState<9 | 18>(18);
@@ -51,7 +52,7 @@ export function Play() {
           <Card>
             <Row style={{ justifyContent: 'space-between' }}>
               <Body style={{ fontWeight: '700' }}>{r.course}</Body>
-              <Text style={{ fontWeight: '800', fontSize: 20, color: colors.primary }}>{score || '–'}</Text>
+              <Text style={{ fontWeight: '800', fontSize: 20, color: c.accent }}>{score || '–'}</Text>
             </Row>
             <Body muted>{new Date(r.playedAt).toLocaleDateString()} · {r.holes} holes · {r.kind}</Body>
           </Card>

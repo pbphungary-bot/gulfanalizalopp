@@ -7,12 +7,13 @@ import { getPlan, listDrillLogs, savePlan, shotsByRound } from '../db';
 import { buildWeeklyPlan, diagnose } from '../domain/coach';
 import { SG_LABEL, Profile } from '../domain/types';
 import type { RootStackParams } from '../navigation';
-import { colors } from '../theme';
+import { useTheme } from '../theme';
 import { useLoad } from '../useLoad';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export function Coach({ profile }: { profile: Profile }) {
+  const { c } = useTheme();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { data, reload } = useLoad(getPlan);
   const [roundDay, setRoundDay] = useState(5);
@@ -51,9 +52,9 @@ export function Coach({ profile }: { profile: Profile }) {
             <Pressable key={i} onPress={() => s.kind !== 'round' && nav.navigate('Session', { dayIndex: s.day })} accessibilityRole="button">
               <Card>
                 <Row style={{ justifyContent: 'space-between' }}>
-                  <Text style={{ fontWeight: '800', color: colors.primary, width: 48 }}>{DAYS[s.day]}</Text>
-                  <Text style={{ flex: 1, fontSize: 16, color: colors.text }}>{s.title}</Text>
-                  <Text style={{ color: colors.muted }}>{s.minutes} min</Text>
+                  <Text style={{ fontWeight: '800', color: c.accent, width: 48 }}>{DAYS[s.day]}</Text>
+                  <Text style={{ flex: 1, fontSize: 16, color: c.text }}>{s.title}</Text>
+                  <Text style={{ color: c.muted }}>{s.minutes} min</Text>
                 </Row>
               </Card>
             </Pressable>
