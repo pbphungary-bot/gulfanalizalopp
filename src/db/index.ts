@@ -48,6 +48,9 @@ async function kvSet(key: string, value: unknown): Promise<void> {
   await db.runAsync('INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
 }
 
+export const getSetting = <T,>(key: string) => kvGet<T>(`setting:${key}`);
+export const saveSetting = (key: string, value: unknown) => kvSet(`setting:${key}`, value);
+
 export async function getProfile(): Promise<Profile | null> {
   const p = await kvGet<Profile>('profile');
   return p ? { ...DEFAULT_PROFILE, ...p } : null;
