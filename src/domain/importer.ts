@@ -52,35 +52,12 @@ function colIndex(ref: string): number {
   return n - 1;
 }
 
-/** Read the first worksheet of an .xlsx file into rows of text. */
-export function parseXlsx(bytes: Uint8Array): string[][] {
-  const files = unzipSync(bytes);
-  const read = (name: string): string | null => (files[name] ? utf8(files[name]) : null);
+export interface Sheet {
+  name: string;
+  rows: string[][];
+}
 
-  const shared: string[] = [];
-  const sst = read('xl/sharedStrings.xml');
-  if (sst) {
-    for (const m of sst.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)) {
-      const parts = [...m[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((t) => unxml(t[1]));
-      shared.push(parts.join(''));
-    }
-  }
-
-  // Find the first sheet's file through the workbook relationships; fall back to sheet1.
-  let sheetPath = 'xl/worksheets/sheet1.xml';
-  const wb = read('xl/workbook.xml');
-  const rels = read('xl/_rels/workbook.xml.rels');
-  if (wb && rels) {
-    const first = wb.match(/<sheet\b[^>]*r:id="([^"]+)"/);
-    if (first) {
-      const rel = [...rels.matchAll(/<Relationship\b[^>]*>/g)].map((m) => m[0]).find((r) => r.includes(`Id="${first[1]}"`));
-      const target = rel?.match(/Target="([^"]+)"/)?.[1];
-      if (target) sheetPath = target.startsWith('/') ? target.slice(1) : `xl/${target}`;
-    }
-  }
-  const sheet = read(sheetPath);
-  if (!sheet) throw new Error('Could not find a worksheet in this Excel file.');
-
+function parseSheetXml(sheet: string, shared: string[]): string[][] {
   const rows: string[][] = [];
   for (const rm of sheet.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
     const cells: string[] = [];
@@ -102,6 +79,72 @@ export function parseXlsx(bytes: Uint8Array): string[][] {
   return rows.filter((r) => r.some((c) => c !== ''));
 }
 
+/** Read every worksheet of an .xlsx file, in workbook order, skipping empty ones. */
+export function parseXlsxSheets(bytes: Uint8Array): Sheet[] {
+  const files = unzipSync(bytes);
+  const read = (name: string): string | null => (files[name] ? utf8(files[name]) : null);
+
+  const shared: string[] = [];
+  const sst = read('xl/sharedStrings.xml');
+  if (sst) {
+    for (const m of sst.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)) {
+      const parts = [...m[1].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((t) => unxml(t[1]));
+      shared.push(parts.join(''));
+    }
+  }
+
+  const targets: { name: string; path: string }[] = [];
+  const wb = read('xl/workbook.xml');
+  const rels = read('xl/_rels/workbook.xml.rels');
+  if (wb && rels) {
+    const relMap = new Map<string, string>();
+    for (const m of rels.matchAll(/<Relationship\b[^>]*>/g)) {
+      const id = m[0].match(/\bId="([^"]+)"/)?.[1];
+      const t = m[0].match(/\bTarget="([^"]+)"/)?.[1];
+      if (id && t) relMap.set(id, t.startsWith('/') ? t.slice(1) : `xl/${t}`);
+    }
+    for (const m of wb.matchAll(/<sheet\b[^>]*>/g)) {
+      const name = unxml(m[0].match(/\bname="([^"]*)"/)?.[1] ?? '');
+      const rid = m[0].match(/\br:id="([^"]+)"/)?.[1];
+      const path = rid ? relMap.get(rid) : undefined;
+      if (path) targets.push({ name, path });
+    }
+  }
+  if (!targets.length) targets.push({ name: 'Sheet1', path: 'xl/worksheets/sheet1.xml' });
+
+  const sheets: Sheet[] = [];
+  for (const t of targets) {
+    const xml = read(t.path);
+    if (!xml) continue;
+    const rows = parseSheetXml(xml, shared);
+    if (rows.length) sheets.push({ name: t.name, rows });
+  }
+  if (!sheets.length) throw new Error('Could not find any data in this Excel file.');
+  return sheets;
+}
+
+/**
+ * Choose the sheet most likely to hold shot data: one with club and carry columns wins,
+ * and among those the one with the most rows (an "All shots" sheet beats single sessions).
+ */
+export function pickBestSheet(sheets: Sheet[]): number {
+  let best = 0;
+  let bestScore = -1;
+  sheets.forEach((s, i) => {
+    const t = toTable(s.rows);
+    const m = detectMapping(t.headers);
+    const score = (m.club !== undefined && m.carry !== undefined ? 1_000_000 : 0) + scoreHeader(t.headers) * 1000 + t.rows.length;
+    if (score > bestScore) { bestScore = score; best = i; }
+  });
+  return best;
+}
+
+/** Rows of the best sheet in an .xlsx file. Use parseXlsxSheets to let the user choose a different one. */
+export function parseXlsx(bytes: Uint8Array): string[][] {
+  const sheets = parseXlsxSheets(bytes);
+  return sheets[pickBestSheet(sheets)].rows;
+}
+
 export function isZip(bytes: Uint8Array): boolean {
   return bytes.length > 3 && bytes[0] === 0x50 && bytes[1] === 0x4b;
 }
@@ -111,7 +154,7 @@ export function isZip(bytes: Uint8Array): boolean {
 /* ------------------------------------------------------------------ */
 
 export type Unit = 'yards' | 'meters';
-export type Field = 'club' | 'carry' | 'total' | 'clubSpeed' | 'ballSpeed';
+export type Field = 'club' | 'carry' | 'total' | 'clubSpeed' | 'ballSpeed' | 'session';
 export type Mapping = Partial<Record<Field, number>>;
 
 const norm = (h: string) =>
@@ -123,6 +166,7 @@ const SYNONYMS: Record<Field, string[]> = {
   total: ['total', 'total distance', 'total dist', 'total length', 'distance', 'total yards', 'total yds'],
   clubSpeed: ['club speed', 'club head speed', 'clubhead speed', 'club spd', 'chs'],
   ballSpeed: ['ball speed', 'ball spd', 'bs'],
+  session: ['session', 'session name', 'session id', 'group'],
 };
 
 function scoreHeader(cells: string[]): number {
@@ -235,6 +279,14 @@ export interface ClubAverage {
   median: number;
 }
 
+export interface PreviewSession {
+  name: string;
+  /** Rows with a club and a carry in this session */
+  shots: number;
+  unit: Unit;
+  included: boolean;
+}
+
 export interface ImportPreview {
   mapping: Mapping;
   unit: Unit;
@@ -244,7 +296,22 @@ export interface ImportPreview {
   shots: ImportShot[];
   clubs: ClubAverage[];
   unmatched: { name: string; count: number }[];
+  /** Present only when the file has a session column with more than one session */
+  sessions: PreviewSession[];
   warnings: string[];
+}
+
+export interface PreviewOptions {
+  mapping?: Mapping;
+  /** Unit for the whole file, or for sessions with no unit of their own */
+  unit?: Unit;
+  filterMishits?: boolean;
+  /** Per-session units, for files that mix yards and meters */
+  sessionUnits?: Record<string, Unit>;
+  /** Sessions to leave out entirely */
+  excludedSessions?: string[];
+  /** Club names the app does not know, mapped to a club in the bag (e.g. a driver model name) */
+  aliases?: Record<string, string>;
 }
 
 const YD_PER_M = 1.0936133;
@@ -259,7 +326,7 @@ const median = (xs: number[]) => {
 
 export function buildPreview(
   table: Table,
-  opts: { mapping?: Mapping; unit?: Unit; filterMishits?: boolean } = {},
+  opts: PreviewOptions = {},
 ): ImportPreview {
   const mapping = opts.mapping ?? detectMapping(table.headers);
   const detected = detectUnit(table.headers, mapping, table.units);
@@ -268,11 +335,14 @@ export function buildPreview(
   const warnings: string[] = [];
   if (mapping.club === undefined) warnings.push('No club column found. Choose which column holds the club.');
   if (mapping.carry === undefined) warnings.push('No carry column found. Choose which column holds carry distance.');
-  if (!opts.unit && !detected) warnings.push('The file does not say yards or meters, so yards is assumed. Change it below if needed.');
+  const multiSession = mapping.session !== undefined && new Set(table.rows.map((r) => (r[mapping.session!] ?? '').trim())).size > 1;
+  if (!opts.unit && !detected && !multiSession) warnings.push('The file does not say yards or meters, so yards is assumed. Change it below if needed.');
 
-  const factor = unit === 'meters' ? YD_PER_M : 1;
   const shots: ImportShot[] = [];
   const unmatchedCount = new Map<string, number>();
+  const sessionCount = new Map<string, number>();
+  const excluded = new Set(opts.excludedSessions ?? []);
+  const unitFor = (session: string | null): Unit => (session && opts.sessionUnits?.[session]) || unit;
   let rowsUsed = 0;
 
   if (mapping.club !== undefined && mapping.carry !== undefined) {
@@ -280,11 +350,16 @@ export function buildPreview(
       const name = (row[mapping.club] ?? '').trim();
       const carry = parseNumber(row[mapping.carry] ?? '');
       if (!name || Number.isNaN(carry) || carry <= 0) continue;
-      const club = normalizeClub(name);
+      const session = mapping.session !== undefined ? ((row[mapping.session] ?? '').trim() || '(no name)') : null;
+      if (session) sessionCount.set(session, (sessionCount.get(session) ?? 0) + 1);
+      if (session && excluded.has(session)) continue;
+      const alias = opts.aliases?.[name];
+      const club = normalizeClub(name) ?? (alias && DISTANCE_CLUBS.includes(alias) ? alias : null);
       if (!club) {
-        if (!/putter/i.test(name)) unmatchedCount.set(name, (unmatchedCount.get(name) ?? 0) + 1);
+        if (!/putter/i.test(name) && alias !== '') unmatchedCount.set(name, (unmatchedCount.get(name) ?? 0) + 1);
         continue;
       }
+      const factor = unitFor(session) === 'meters' ? YD_PER_M : 1;
       const num = (f: Field) => {
         const i = mapping[f];
         if (i === undefined) return null;
@@ -323,18 +398,26 @@ export function buildPreview(
       median: med,
     });
   }
+  const sessions: PreviewSession[] =
+    sessionCount.size > 1
+      ? [...sessionCount].map(([name, count]) => ({ name, shots: count, unit: unitFor(name), included: !excluded.has(name) }))
+      : [];
+  if (sessions.length && !detected && !opts.sessionUnits) {
+    warnings.push('This file combines several sessions and does not say which units each one uses. Check the units for every session below before saving.');
+  }
   if (clubs.some((c) => c.used < 5)) warnings.push('Some clubs have fewer than 5 usable shots, so their averages may move a lot.');
 
   return {
     mapping, unit, unitDetected: !!detected,
     rowsRead: table.rows.length, rowsUsed, shots, clubs,
     unmatched: [...unmatchedCount].map(([name, count]) => ({ name, count })),
+    sessions,
     warnings,
   };
 }
 
 /** One call from raw grid to preview. */
-export function previewFromGrid(grid: string[][], opts: Parameters<typeof buildPreview>[1] = {}): { table: Table; preview: ImportPreview } {
+export function previewFromGrid(grid: string[][], opts: PreviewOptions = {}): { table: Table; preview: ImportPreview } {
   const table = toTable(grid);
   return { table, preview: buildPreview(table, opts) };
 }
