@@ -5,6 +5,7 @@ import { addClubDistance, deleteClubDistance, listClubDistances } from '../db/cl
 import { DISTANCE_CLUBS, DistanceSource, GAP_TEXT, gaps, history, summarize } from '../domain/clubs';
 import { space, useTheme } from '../theme';
 import { useLoad } from '../useLoad';
+import { ImportClubData } from './ImportClubData';
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString();
 
@@ -57,6 +58,8 @@ export function ClubDistances() {
 
   return (
     <>
+      <ImportClubData onSaved={reload} />
+
       <Card>
         <H2>Add a distance</H2>
         <Body muted>Type it in, or enter the average from your launch monitor. Add a new one whenever your numbers change.</Body>
