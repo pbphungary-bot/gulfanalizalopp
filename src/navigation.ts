@@ -9,5 +9,6 @@ export type TabParams = {
   Home: undefined;
   Coach: undefined;
   Play: undefined;
+  Fitness: undefined;
   MyGame: undefined;
 };

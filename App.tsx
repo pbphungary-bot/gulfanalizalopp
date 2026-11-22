@@ -9,6 +9,7 @@ import { getProfile } from './src/db';
 import type { Profile } from './src/domain/types';
 import type { RootStackParams, TabParams } from './src/navigation';
 import { Coach } from './src/screens/Coach';
+import { Fitness } from './src/screens/Fitness';
 import { DrillScreen } from './src/screens/Drill';
 import { Home } from './src/screens/Home';
 import { MyGame } from './src/screens/MyGame';
@@ -22,7 +23,7 @@ import { ThemeProvider, useTheme } from './src/theme';
 const Tab = createBottomTabNavigator<TabParams>();
 const Stack = createNativeStackNavigator<RootStackParams>();
 
-const GLYPH: Record<keyof TabParams, string> = { Home: '◉', Coach: '◈', Play: '⛳', MyGame: '▥' };
+const GLYPH: Record<keyof TabParams, string> = { Home: '◉', Coach: '◈', Play: '⛳', Fitness: '⚡', MyGame: '▥' };
 
 function Tabs({ profile }: { profile: Profile }) {
   const { c } = useTheme();
@@ -43,7 +44,8 @@ function Tabs({ profile }: { profile: Profile }) {
       <Tab.Screen name="Home">{() => <Home profile={profile} />}</Tab.Screen>
       <Tab.Screen name="Coach" options={{ title: 'AI Coach' }}>{() => <Coach profile={profile} />}</Tab.Screen>
       <Tab.Screen name="Play" component={Play} options={{ title: 'Play' }} />
-      <Tab.Screen name="MyGame" component={MyGame} options={{ title: 'Performance' }} />
+      <Tab.Screen name="Fitness" component={Fitness} options={{ title: 'Fitness' }} />
+      <Tab.Screen name="MyGame" component={MyGame} options={{ title: 'My Game' }} />
     </Tab.Navigator>
   );
 }

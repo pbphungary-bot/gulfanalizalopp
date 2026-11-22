@@ -34,19 +34,19 @@ export function useStyles() {
   return useMemo(() => makeStyles(c), [c]);
 }
 
-/** The four tab screens draw their own header, so they must start below the status bar. */
-const TAB_SCREENS = ['Home', 'Coach', 'Play', 'MyGame'];
+/** Stack screens that show a native header. That header already clears the status bar. */
+const SCREENS_WITH_HEADER = ['Round', 'RoundReview', 'Session', 'Drill'];
 
 /**
  * Scrollable screen that centers a max-width column on tablets. Screens with a native header
- * (inside the stack) get their top inset from that header; tab screens and onboarding have none,
- * so they pad for the status bar themselves.
+ * get their top inset from that header. Tab screens and onboarding have none, so they pad for
+ * the status bar themselves, which also means a new tab needs no change here.
  */
 export function Screen({ children }: { children: React.ReactNode }) {
   const tablet = useIsTablet();
   const styles = useStyles();
   const route = useContext(NavigationRouteContext);
-  const needsTopInset = !route || TAB_SCREENS.includes(route.name);
+  const needsTopInset = !route || !SCREENS_WITH_HEADER.includes(route.name);
   return (
     <SafeAreaView style={styles.safe} edges={needsTopInset ? ['top', 'left', 'right'] : ['left', 'right']}>
       <ScrollView contentContainerStyle={[styles.scroll, tablet && styles.scrollTablet]} keyboardShouldPersistTaps="handled">

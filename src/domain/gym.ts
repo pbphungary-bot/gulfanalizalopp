@@ -1,35 +1,58 @@
-export interface GymExercise { name: string; prescription: string }
+export type GymTemplateKey = 'strength' | 'power' | 'mobility';
+export type LoadKind = 'weight' | 'band' | 'bodyweight';
 
-export const GYM_TEMPLATES: Record<'strength' | 'power' | 'mobility', { title: string; note: string; exercises: GymExercise[] }> = {
+export interface GymExercise {
+  id: string;
+  name: string;
+  sets: number;
+  repsLow: number;
+  repsHigh: number;
+  perSide: boolean;
+  kind: LoadKind;
+  /** Smallest sensible jump in kg when adding weight */
+  step: number;
+  /** Plain text for lists, e.g. "3 × 6–8" */
+  prescription: string;
+}
+
+function ex(
+  id: string, name: string, sets: number, repsLow: number, repsHigh: number,
+  kind: LoadKind, step = 0, perSide = false,
+): GymExercise {
+  const reps = repsLow === repsHigh ? `${repsLow}` : `${repsLow}–${repsHigh}`;
+  return { id, name, sets, repsLow, repsHigh, perSide, kind, step, prescription: `${sets} × ${reps}${perSide ? ' each side' : ''}` };
+}
+
+export const GYM_TEMPLATES: Record<GymTemplateKey, { title: string; note: string; exercises: GymExercise[] }> = {
   strength: {
     title: 'Golf strength',
     note: 'Lower body and trunk strength. Leave 1–2 reps in reserve.',
     exercises: [
-      { name: 'Goblet or back squat', prescription: '3 × 6–8' },
-      { name: 'Romanian deadlift', prescription: '3 × 8' },
-      { name: 'Split squat', prescription: '3 × 8 each side' },
-      { name: 'Single-arm row', prescription: '3 × 10 each side' },
-      { name: 'Pallof press (anti-rotation)', prescription: '3 × 10 each side' },
+      ex('squat', 'Goblet or back squat', 3, 6, 8, 'weight', 2.5),
+      ex('rdl', 'Romanian deadlift', 3, 8, 10, 'weight', 2.5),
+      ex('split-squat', 'Split squat', 3, 8, 10, 'weight', 2, true),
+      ex('row', 'Single-arm row', 3, 10, 12, 'weight', 2, true),
+      ex('pallof', 'Pallof press (anti-rotation)', 3, 10, 12, 'band', 0, true),
     ],
   },
   power: {
     title: 'Rotational power',
     note: 'Fast, crisp reps. Stop a set when speed drops.',
     exercises: [
-      { name: 'Medicine ball rotational throw', prescription: '4 × 5 each side' },
-      { name: 'Box jump', prescription: '3 × 4' },
-      { name: 'Cable woodchop', prescription: '3 × 8 each side' },
-      { name: 'Landmine rotation', prescription: '3 × 6 each side' },
+      ex('mb-throw', 'Medicine ball rotational throw', 4, 5, 5, 'weight', 1, true),
+      ex('box-jump', 'Box jump', 3, 4, 4, 'bodyweight'),
+      ex('woodchop', 'Cable woodchop', 3, 8, 10, 'weight', 2.5, true),
+      ex('landmine', 'Landmine rotation', 3, 6, 8, 'weight', 2.5, true),
     ],
   },
   mobility: {
     title: 'Mobility',
     note: 'Easy effort. Move through comfortable ranges only.',
     exercises: [
-      { name: 'Thoracic rotation (open book)', prescription: '2 × 10 each side' },
-      { name: '90/90 hip rotations', prescription: '2 × 8 each side' },
-      { name: 'Shoulder CARs', prescription: '2 × 5 each side' },
-      { name: 'Ankle mobility rocks', prescription: '2 × 10 each side' },
+      ex('thoracic', 'Thoracic rotation (open book)', 2, 10, 10, 'bodyweight', 0, true),
+      ex('hip-9090', '90/90 hip rotations', 2, 8, 8, 'bodyweight', 0, true),
+      ex('shoulder-car', 'Shoulder CARs', 2, 5, 5, 'bodyweight', 0, true),
+      ex('ankle-rocks', 'Ankle mobility rocks', 2, 10, 10, 'bodyweight', 0, true),
     ],
   },
 };

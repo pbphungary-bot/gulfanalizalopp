@@ -27,6 +27,38 @@ export function MyGame() {
 
       {view === 'overview' && data && (
         <>
+          {data.diag.roundsAnalyzed > 0 && (
+            <Card>
+              <H2>What’s working</H2>
+              {CATS.filter((c) => data.diag.avgPerRound[c] > 0.05)
+                .sort((a, b) => data.diag.avgPerRound[b] - data.diag.avgPerRound[a])
+                .map((c) => (
+                  <Row key={c} style={{ justifyContent: 'space-between' }}>
+                    <Body>{SG_LABEL[c]}</Body>
+                    <SgValue value={data.diag.avgPerRound[c]} />
+                  </Row>
+                ))}
+              {CATS.every((c) => data.diag.avgPerRound[c] <= 0.05) && <Body muted>Nothing is gaining strokes against the baseline yet.</Body>}
+              <Body muted style={{ fontSize: 12 }}>Keep these ticking over. Don’t add practice time here.</Body>
+
+              <H2>What’s costing you strokes</H2>
+              {CATS.filter((c) => data.diag.avgPerRound[c] < -0.05)
+                .sort((a, b) => data.diag.avgPerRound[a] - data.diag.avgPerRound[b])
+                .map((c) => (
+                  <Row key={c} style={{ justifyContent: 'space-between' }}>
+                    <Body>{SG_LABEL[c]}</Body>
+                    <SgValue value={data.diag.avgPerRound[c]} />
+                  </Row>
+                ))}
+              {CATS.every((c) => data.diag.avgPerRound[c] >= -0.05) && <Body muted>Nothing is costing you strokes against the baseline.</Body>}
+              {data.diag.messages
+                .filter((m) => m.startsWith('Your weakest approach range'))
+                .map((m, i) => (
+                  <Body key={i} muted style={{ fontSize: 12 }}>{m}</Body>
+                ))}
+              {!data.diag.hasEnoughData && <Body muted style={{ fontSize: 12 }}>Based on very little data so far.</Body>}
+            </Card>
+          )}
           <Card>
             <H2>Strokes gained per round (last {data.diag.roundsAnalyzed || 0})</H2>
             {data.diag.roundsAnalyzed === 0 && <Body muted>Play and track a round to see this.</Body>}
