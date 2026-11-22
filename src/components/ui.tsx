@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import { NavigationRouteContext } from '@react-navigation/native';
+import React, { useContext, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Palette, space, TAP, useTheme } from '../theme';
@@ -33,12 +34,21 @@ export function useStyles() {
   return useMemo(() => makeStyles(c), [c]);
 }
 
-/** Scrollable screen that centers a max-width column on tablets. */
+/** The four tab screens draw their own header, so they must start below the status bar. */
+const TAB_SCREENS = ['Home', 'Coach', 'Play', 'MyGame'];
+
+/**
+ * Scrollable screen that centers a max-width column on tablets. Screens with a native header
+ * (inside the stack) get their top inset from that header; tab screens and onboarding have none,
+ * so they pad for the status bar themselves.
+ */
 export function Screen({ children }: { children: React.ReactNode }) {
   const tablet = useIsTablet();
   const styles = useStyles();
+  const route = useContext(NavigationRouteContext);
+  const needsTopInset = !route || TAB_SCREENS.includes(route.name);
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+    <SafeAreaView style={styles.safe} edges={needsTopInset ? ['top', 'left', 'right'] : ['left', 'right']}>
       <ScrollView contentContainerStyle={[styles.scroll, tablet && styles.scrollTablet]} keyboardShouldPersistTaps="handled">
         {children}
       </ScrollView>
