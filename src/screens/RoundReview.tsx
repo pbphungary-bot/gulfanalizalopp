@@ -5,12 +5,13 @@ import { Body, Button, Card, H1, H2, Row, Screen, SgValue } from '../components/
 import { deleteRound, getRound, shotsForRound } from '../db';
 import { approachBands, roundScore, roundStrokesGained } from '../domain/strokesGained';
 import type { SgCategory } from '../domain/types';
+import { formatBand } from '../domain/units';
 import { useI18n } from '../i18n';
 import type { RootStackParams } from '../navigation';
 import { useLoad } from '../useLoad';
 
 export function RoundReview() {
-  const { t, num, date } = useI18n();
+  const { t, num, date, system } = useI18n();
   const nav = useNavigation();
   const { params } = useRoute<RouteProp<RootStackParams, 'RoundReview'>>();
   const { data } = useLoad(async () => {
@@ -21,7 +22,7 @@ export function RoundReview() {
   if (!data?.round) return null;
   const { round, shots } = data;
   const { totals } = roundStrokesGained(shots);
-  const bands = approachBands(shots);
+  const bands = approachBands(shots, system);
   const cats: SgCategory[] = ['tee', 'approach', 'short', 'putting'];
   const worst = cats.reduce((a, b) => (totals[a] <= totals[b] ? a : b));
 
@@ -61,8 +62,8 @@ export function RoundReview() {
         <Card>
           <H2>{t('review.approachBands')}</H2>
           {bands.map((b) => (
-            <Row key={b.label} style={{ justifyContent: 'space-between' }}>
-              <Body>{b.label} ({num(b.shots)})</Body>
+            <Row key={b.loM} style={{ justifyContent: 'space-between' }}>
+              <Body>{formatBand(b, system)} ({num(b.shots)})</Body>
               <SgValue value={b.avgSg} size={16} />
             </Row>
           ))}

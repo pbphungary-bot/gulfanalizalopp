@@ -19,7 +19,7 @@ const END_LIES: Lie[] = ['fairway', 'rough', 'sand', 'recovery', 'green', 'holed
  */
 export function RoundScreen() {
   const { c } = useTheme();
-  const { t, num } = useI18n();
+  const { t, num, len, short, unitLong, unitShort, parseLen, parseShort } = useI18n();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { params } = useRoute<RouteProp<RootStackParams, 'Round'>>();
   const [round, setRound] = useState<Round | null>(null);
@@ -50,7 +50,6 @@ export function RoundScreen() {
     });
   }, [refresh]);
 
-  const dec = (s: string) => parseFloat(s.replace(',', '.'));
   const holeShots = shots.filter((s) => s.hole === hole);
   const last = holeShots[holeShots.length - 1];
   const holeStarted = holeShots.length > 0;
@@ -58,8 +57,8 @@ export function RoundScreen() {
 
   const start = last
     ? { lie: last.endLie, dist: last.endDist }
-    : { lie: 'tee' as Lie, dist: dec(yardage) };
-  const inputs = endLie === 'holed' ? 0 : dec(endDist);
+    : { lie: 'tee' as Lie, dist: parseLen(yardage) };
+  const inputs = endLie === 'holed' ? 0 : endLie === 'green' ? parseShort(endDist) : parseLen(endDist);
   const canSave = !Number.isNaN(start.dist) && start.dist > 0 && (endLie === 'holed' || (!Number.isNaN(inputs) && inputs >= 0));
   const total = shots.length + shots.reduce((a, s) => a + s.penalty, 0);
 
@@ -103,7 +102,7 @@ export function RoundScreen() {
     nav.replace('RoundReview', { roundId: round.id });
   };
 
-  const unit = (lie: Lie) => t(lie === 'green' ? 'unit.feet' : 'unit.yards');
+  const unit = (lie: Lie) => (lie === 'green' ? unitShort : unitLong);
   const sgPreview = canSave
     ? expectedStrokes(start.lie, start.dist) - expectedStrokes(endLie, endLie === 'holed' ? 0 : inputs) - 1 - penalty
     : null;
@@ -123,7 +122,7 @@ export function RoundScreen() {
               <Chip key={p} label={t('round.par', { n: p })} selected={par === p} onPress={() => setPar(p)} />
             ))}
           </ChipRow>
-          <Field label={t('round.length')} value={yardage} onChangeText={setYardage} keyboardType="decimal-pad" />
+          <Field label={t('round.length', { unit: unitLong })} value={yardage} onChangeText={setYardage} keyboardType="decimal-pad" />
         </Card>
       )}
 
@@ -131,7 +130,7 @@ export function RoundScreen() {
         <H2>
           {Number.isNaN(start.dist)
             ? t('round.shotFrom', { n: holeShots.length + 1, lie: t(`lie.${start.lie}`) })
-            : t('round.shotFromDist', { n: holeShots.length + 1, lie: t(`lie.${start.lie}`), d: Math.round(start.dist), unit: unit(start.lie) })}
+            : t('round.shotFromDist', { n: holeShots.length + 1, lie: t(`lie.${start.lie}`), dist: start.lie === 'green' ? short(start.dist) : len(start.dist) })}
         </H2>
         <Body muted>{t('round.club')}</Body>
         <ChipRow>

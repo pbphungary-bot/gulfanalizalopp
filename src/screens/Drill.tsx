@@ -9,7 +9,7 @@ import { useI18n } from '../i18n';
 import type { RootStackParams } from '../navigation';
 
 export function DrillScreen() {
-  const { t } = useI18n();
+  const { t, system } = useI18n();
   const nav = useNavigation();
   const { params } = useRoute<RouteProp<RootStackParams, 'Drill'>>();
   const drill = DRILL_BY_ID[params.drillId];
@@ -19,7 +19,7 @@ export function DrillScreen() {
   const [note, setNote] = useState('');
 
   if (!drill) return null;
-  const text = drillText(drill, t);
+  const text = drillText(drill, t, system);
 
   const save = async () => {
     const a = parseInt(attempts, 10);

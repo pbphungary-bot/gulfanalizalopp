@@ -11,7 +11,7 @@ import type { RootStackParams } from '../navigation';
 import { useLoad } from '../useLoad';
 
 export function Session() {
-  const { t } = useI18n();
+  const { t, system } = useI18n();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { params } = useRoute<RouteProp<RootStackParams, 'Session'>>();
   const { data: plan } = useLoad(getPlan);
@@ -28,7 +28,7 @@ export function Session() {
             s.drillIds?.map((id) => {
               const d = DRILL_BY_ID[id];
               if (!d) return null;
-              const text = drillText(d, t);
+              const text = drillText(d, t, system);
               return (
                 <Card key={id}>
                   <H2>{text.name} · {t('common.min', { n: d.minutes })}</H2>

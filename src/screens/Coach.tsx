@@ -13,14 +13,14 @@ import { useLoad } from '../useLoad';
 
 export function Coach({ profile }: { profile: Profile }) {
   const { c } = useTheme();
-  const { t, tm } = useI18n();
+  const { t, tm, system } = useI18n();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParams>>();
   const { data, reload } = useLoad(getPlan);
   const [roundDay, setRoundDay] = useState(5);
 
   const regenerate = async () => {
     const [rounds, logs] = await Promise.all([shotsByRound(10), listDrillLogs()]);
-    const diag = diagnose(rounds.map((r) => r.shots));
+    const diag = diagnose(rounds.map((r) => r.shots), system);
     const plan = buildWeeklyPlan(profile, diag, logs, { roundDay, seed: Math.floor(Date.now() / 6.048e8) });
     await savePlan(plan);
     reload();
