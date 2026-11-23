@@ -18,7 +18,7 @@ export const hu: Record<MessageKey, string> = {
   'time.hm': '{h} ó {m} p',
   'time.m': '{m} p',
   'lang.switch': 'Nyelv váltása',
-  'theme.toLight': 'Váltás világosmódra',
+  'theme.toLight': 'Váltás világos módra',
   'theme.toDark': 'Váltás sötét módra',
 
   // navigation
@@ -34,7 +34,7 @@ export const hu: Record<MessageKey, string> = {
 
   // categories, days, lies
   'sg.tee': 'Kezdőütés',
-  'sg.approach': 'Közelítés',
+  'sg.approach': 'Megközelítés',
   'sg.short': 'Green körül',
   'sg.putting': 'Puttolás',
   'dayName.0': 'Hé', 'dayName.1': 'Ke', 'dayName.2': 'Sze', 'dayName.3': 'Csü',
@@ -70,7 +70,7 @@ export const hu: Record<MessageKey, string> = {
 
   // home
   'home.title': 'A játékod. Megfejtve.',
-  'home.journey': 'Útban a célhendikep felé: {target}.',
+  'home.journey': 'Úton a célhendikep felé: {target}.',
   'home.handicap': 'Hendikep',
   'home.target': 'Cél: {n}',
   'home.avgScore': 'Átlageredmény',
@@ -95,10 +95,10 @@ export const hu: Record<MessageKey, string> = {
   'diag.none': 'Rögzíts egy kört az első elemzéshez.',
   'diag.few': 'Csak 1 kör van rögzítve. Ez csak előzetes jelzés, nem ítélet.',
   'diag.costing': 'Legtöbbet itt veszítesz: {cat} ({v} ütés körönként az alapértékhez képest).',
-  'diag.weakBand': 'A leggyengébb megközelítési tartományod: {lo}–{hi} {u} ({v} ütésénként).',
-  'diag.weakBandOpen': 'A leggyengébb megközelítési tartományod: {lo}+ {u} ({v} ütésénként).',
+  'diag.weakBand': 'A leggyengébb megközelítési tartományod: {lo}–{hi} {u} ({v} ütésenként).',
+  'diag.weakBandOpen': 'A leggyengébb megközelítési tartományod: {lo}+ {u} ({v} ütésenként).',
   'diag.strength': '{cat}: erősséged. Ne gyakorold túl.',
-  'plan.split': 'Időbeosztás — Kezdőütés {tee}%, Közelítés {approach}%, Green körül {short}%, Puttolás {putting}%.',
+  'plan.split': 'Időbeosztás — Kezdőütés {tee}%, Megközelítés {approach}%, Green körül {short}%, Puttolás {putting}%.',
   'plan.mastery': '{cat}: a gyakorlatok jól mennek ({pct}% siker), ezért kevesebb időt kap.',
   'plan.round': 'Játssz egy kört, és rögzíts minden ütést',
   'plan.practice': '{cat} gyakorlás',
@@ -166,9 +166,9 @@ export const hu: Record<MessageKey, string> = {
   'review.placeholder': 'Ideiglenes alapértékhez viszonyítva. Mielőtt hivatalos referenciaként kezeled, olvasd el a README-t.',
   'review.opp': 'Legnagyobb lehetőséged',
   'review.oppBody': '{cat}: itt vesztetted a legtöbb ütést ebben a körben ({v}). A következő tervet az Edző fül ebbe az irányba súlyozza.',
-  'review.approachBands': 'Közelítés távolság szerint',
+  'review.approachBands': 'Megközelítés távolság szerint',
   'review.delete': 'Kör törlése',
-  'review.deleteTitle': 'Töröltöd ezt a kört?',
+  'review.deleteTitle': 'Törlöd ezt a kört?',
   'review.deleteBody': 'Ez nem vonható vissza.',
 
   // my game
@@ -219,7 +219,7 @@ export const hu: Record<MessageKey, string> = {
   'cd.errTotalBody': 'A teljes távolság nem lehet rövidebb a carrynél. Hagyd üresen, ha nem tudod.',
   'cd.errShotsTitle': 'Ellenőrizd az ütésszámot',
   'cd.errShotsBody': 'Add meg, hány ütésen alapul az átlag, vagy hagyd üresen.',
-  'cd.delTitle': 'Töröltöd ezt a bejegyzést?',
+  'cd.delTitle': 'Törlöd ezt a bejegyzést?',
   'cd.delBody': 'Ez eltávolítja az ütő előzményeiből.',
   'gap.order': 'A hosszabb ütő sem megy messzebb. Ellenőrizd a számokat.',
   'gap.tight': 'Nagyon közel vannak. Átfedhetnek.',
@@ -278,7 +278,7 @@ export const hu: Record<MessageKey, string> = {
   'fit.setW': '{n}. széria: {w} kg × {r} ismétlés',
   'fit.set': '{n}. széria: {r} ismétlés',
   'fit.delSetLabel': '{n}. széria törlése',
-  'fit.weightLabel': '{name} súlyt kilogrammban',
+  'fit.weightLabel': '{name} súly kilogrammban',
   'fit.repsLabel': '{name} ismétlések',
   'fit.reps': 'ismétlés',
   'fit.logSet': 'SZÉRIA RÖGZÍTÉSE: {n}/{total}',
@@ -289,7 +289,7 @@ export const hu: Record<MessageKey, string> = {
   'fit.errRepsBody': 'Add meg, hány ismétlést csináltál, 1 és 100 között.',
   'fit.errWeightTitle': 'Ellenőrizd a súlyt',
   'fit.errWeightBody': 'Add meg a súlyt kilogrammban, például 60 vagy 22,5.',
-  'fit.delTitle': 'Töröltöd ezt a szériát?',
+  'fit.delTitle': 'Törlöd ezt a szériát?',
   'fit.delBody': 'Ez eltávolítja a naplódból.',
   'gym.eachSide': 'oldalanként',
   'gym.safety': 'Ez általános edzéstanács, nem orvosi tanács. Ha fájdalmad vagy sérülésed van, hagyd abba, és fordulj szakemberhez.',
