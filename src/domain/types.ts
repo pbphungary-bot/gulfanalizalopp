@@ -1,5 +1,14 @@
 /** A value that can be dropped into a translated sentence. */
-export type MsgParam = string | number | Msg | { n: number; d: number };
+export type MsgParam =
+  | string
+  | number
+  | Msg
+  /** A number with a fixed number of decimals */
+  | { n: number; d: number }
+  /** A distance in metres, shown in the current unit; `unit: false` shows the number only */
+  | { m: number; unit?: false }
+  /** The current unit label: 'long' is m / yd, 'short' is m / ft */
+  | { unit: 'long' | 'short' };
 
 /** Language-neutral message: a dictionary key plus values. Translated only when shown. */
 export interface Msg {
@@ -65,10 +74,10 @@ export interface Shot {
   shotNo: number;
   club: string;
   startLie: Lie;
-  /** yards to hole, or feet when startLie === 'green' */
+  /** metres to the hole */
   startDist: number;
   endLie: Lie;
-  /** yards to hole, or feet when endLie === 'green'; 0 when holed */
+  /** metres to the hole; 0 when holed */
   endDist: number;
   penalty: number; // penalty strokes incurred by this shot
 }

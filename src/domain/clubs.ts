@@ -7,9 +7,9 @@ export type DistanceSource = 'manual' | 'monitor';
 export interface ClubDistance {
   id: number;
   club: string;
-  /** Carry distance in yards */
+  /** Carry distance in metres */
   carry: number;
-  /** Total distance in yards, if known */
+  /** Total distance in metres, if known */
   total: number | null;
   source: DistanceSource;
   /** Number of shots behind an average from a launch monitor, if known */
@@ -22,7 +22,7 @@ export interface ClubSummary {
   club: string;
   latest: ClubDistance | null;
   previous: ClubDistance | null;
-  /** Latest carry minus previous carry, in yards */
+  /** Latest carry minus previous carry, in metres */
   delta: number | null;
 }
 
@@ -47,15 +47,15 @@ export type GapFlag = 'order' | 'tight' | 'wide' | null;
 export interface Gap {
   from: string;
   to: string;
-  yards: number;
+  metres: number;
   /** Clubs between these two in the bag that have no recorded distance yet */
   skipped: number;
   flag: GapFlag;
 }
 
 /** Rule-of-thumb limits used only to point out gaps worth a look, never as equipment advice. */
-export const TIGHT_GAP = 5;
-export const WIDE_GAP = 20;
+export const TIGHT_GAP = 5; // metres
+export const WIDE_GAP = 20; // metres
 
 /**
  * Gaps between neighbouring recorded clubs, longest club first, using each club's latest carry.
@@ -70,15 +70,15 @@ export function gaps(summaries: ClubSummary[]): Gap[] {
   for (let i = 0; i + 1 < have.length; i++) {
     const a = have[i];
     const b = have[i + 1];
-    const yards = a.s.latest!.carry - b.s.latest!.carry;
+    const metres = a.s.latest!.carry - b.s.latest!.carry;
     const skipped = b.index - a.index - 1;
     const flag: GapFlag =
-      yards <= 0 ? 'order'
+      metres <= 0 ? 'order'
         : skipped > 0 ? null
-          : yards <= TIGHT_GAP ? 'tight'
-            : yards > WIDE_GAP ? 'wide'
+          : metres <= TIGHT_GAP ? 'tight'
+            : metres > WIDE_GAP ? 'wide'
               : null;
-    out.push({ from: a.s.club, to: b.s.club, yards, skipped, flag });
+    out.push({ from: a.s.club, to: b.s.club, metres, skipped, flag });
   }
   return out;
 }

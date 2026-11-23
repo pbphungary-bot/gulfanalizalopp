@@ -1,4 +1,5 @@
-import type { Drill, TFn } from './types';
+import type { Drill, MsgParam, TFn } from './types';
+import { longUnit, shortUnit, UnitSystem } from './units';
 
 export const DRILLS: Drill[] = [
   { id: 'tee-fairway-gate', category: 'tee', minutes: 20, needs: 'range', steps: 3 },
@@ -15,12 +16,29 @@ export const DRILLS: Drill[] = [
 
 export const DRILL_BY_ID: Record<string, Drill> = Object.fromEntries(DRILLS.map((d) => [d.id, d]));
 
-/** Translated text for a drill. */
-export function drillText(d: Drill, t: TFn) {
+type P = Record<string, MsgParam>;
+
+/**
+ * Distances inside drill text. Metric drills use round metre numbers that are close to the
+ * imperial ones, not exact conversions. {u} is the long unit (m / yd), {s} the short one (m / ft).
+ */
+const DRILL_NUMBERS: Record<string, Record<UnitSystem, P>> = {
+  'tee-fairway-gate': { metric: { w: 25 }, imperial: { w: 30 } },
+  'app-distance-ladder': { metric: { a: 80, b: 100, c: 120, tol: 5 }, imperial: { a: 90, b: 110, c: 130, tol: 5 } },
+  'app-random-targets': { metric: { lo: 80, hi: 150, r: 15 }, imperial: { lo: 90, hi: 160, r: 15 } },
+  'short-landing-spot': { metric: { d: 15, tol: 1 }, imperial: { d: 15, tol: 1 } },
+  'putt-gate-3ft': { metric: { a: 1, b: 2, c: '30 cm' }, imperial: { a: 3, b: 6, c: '1 ft' } },
+  'putt-lag-ladder': { metric: { a: 6, b: 9, c: 12, t: 1 }, imperial: { a: 20, b: 30, c: 40, t: 3 } },
+  'putt-clock-5ft': { metric: { a: 1.5 }, imperial: { a: 5 } },
+};
+
+/** Translated text for a drill, with distances in the player's unit system. */
+export function drillText(d: Drill, t: TFn, system: UnitSystem = 'metric') {
+  const p: P = { ...(DRILL_NUMBERS[d.id]?.[system] ?? {}), u: longUnit(system), s: shortUnit(system) };
   return {
-    name: t(`drill.${d.id}.name`),
-    goal: t(`drill.${d.id}.goal`),
-    steps: Array.from({ length: d.steps }, (_, i) => t(`drill.${d.id}.step.${i + 1}`)),
-    rule: t(`drill.${d.id}.rule`),
+    name: t(`drill.${d.id}.name`, p),
+    goal: t(`drill.${d.id}.goal`, p),
+    steps: Array.from({ length: d.steps }, (_, i) => t(`drill.${d.id}.step.${i + 1}`, p)),
+    rule: t(`drill.${d.id}.rule`, p),
   };
 }

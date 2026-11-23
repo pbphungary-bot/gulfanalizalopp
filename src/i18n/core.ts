@@ -1,4 +1,5 @@
 import type { MsgParam, TFn } from '../domain/types';
+import { longFromM, longUnit, shortUnit, UnitSystem } from '../domain/units';
 import { en } from './en';
 import { hu } from './hu';
 
@@ -14,11 +15,16 @@ export function fmtNum(n: number, decimals: number | undefined, lang: Lang): str
 }
 
 /** Build a translate function. Missing Hungarian text falls back to English, then to the key itself. */
-export function makeT(lang: Lang): TFn {
+export function makeT(lang: Lang, system: UnitSystem = 'metric'): TFn {
   const render = (v: MsgParam): string => {
     if (typeof v === 'number') return fmtNum(v, undefined, lang);
     if (typeof v === 'string') return v;
     if ('k' in v) return t(v.k, v.p);
+    if ('m' in v) {
+      const n = fmtNum(Math.round(longFromM(v.m, system)), undefined, lang);
+      return v.unit === false ? n : `${n} ${longUnit(system)}`;
+    }
+    if ('unit' in v) return v.unit === 'long' ? longUnit(system) : shortUnit(system);
     return fmtNum(v.n, v.d, lang);
   };
   const t: TFn = (key, params) => {
@@ -41,4 +47,3 @@ export function formatDate(iso: string, lang: Lang): string {
     ? `${d.getFullYear()}. ${pad(d.getMonth() + 1)}. ${pad(d.getDate())}.`
     : `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`;
 }
-

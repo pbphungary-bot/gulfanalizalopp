@@ -1,3 +1,4 @@
+import { BandEdges, FT_PER_M, M_PER_YD, UnitSystem, YD_PER_M } from './units';
 import type { Lie, SgCategory, Shot } from './types';
 
 /**
@@ -35,8 +36,8 @@ function interp(table: Pt[], x: number): number {
   return last[1];
 }
 
-/** Expected strokes to hole out from a position. Distance: yards, or feet on the green. */
-export function expectedStrokes(lie: Lie, dist: number): number {
+/** Expected strokes from a table position. Distance in yards, or feet on the green. */
+function expectedFromTable(lie: Lie, dist: number): number {
   if (lie === 'holed') return 0;
   if (lie === 'green') return interp(GREEN_FT, dist);
   const base = interp(FAIRWAY_YDS, dist);
@@ -55,10 +56,16 @@ export function expectedStrokes(lie: Lie, dist: number): number {
   }
 }
 
+/** Expected strokes to hole out from a position. Distance in metres. */
+export function expectedStrokes(lie: Lie, metres: number): number {
+  if (lie === 'holed') return 0;
+  return expectedFromTable(lie, lie === 'green' ? metres * FT_PER_M : metres * YD_PER_M);
+}
+
 export function categorize(shot: Pick<Shot, 'startLie' | 'startDist' | 'shotNo' | 'par'>): SgCategory {
   if (shot.startLie === 'green') return 'putting';
   if (shot.startLie === 'tee' && shot.par >= 4) return 'tee';
-  if (shot.startDist <= 30) return 'short';
+  if (shot.startDist <= 30 * M_PER_YD) return 'short';
   return 'approach';
 }
 
@@ -96,24 +103,29 @@ export function roundScore(shots: Shot[]): number {
   return shots.length + shots.reduce((a, s) => a + s.penalty, 0);
 }
 
-export interface ApproachBand {
-  label: string;
+export interface ApproachBand extends BandEdges {
   shots: number;
   avgSg: number;
 }
 
+/** Band edges in metres. Imperial players get the familiar 30/75/125/175 yard bands. */
+const BAND_EDGES_M: Record<UnitSystem, number[]> = {
+  metric: [25, 70, 115, 160],
+  imperial: [30, 75, 125, 175].map((y) => y * M_PER_YD),
+};
+
 /** Approach performance by starting distance, to find the real weak spot. */
-export function approachBands(shots: Shot[]): ApproachBand[] {
-  const bands: [string, number, number][] = [
-    ['30–75 yd', 30, 75], ['75–125 yd', 75, 125], ['125–175 yd', 125, 175], ['175+ yd', 175, 999],
+export function approachBands(shots: Shot[], system: UnitSystem = 'metric'): ApproachBand[] {
+  const e = BAND_EDGES_M[system];
+  const bands: BandEdges[] = [
+    { loM: e[0], hiM: e[1] }, { loM: e[1], hiM: e[2] }, { loM: e[2], hiM: e[3] }, { loM: e[3], hiM: null },
   ];
+  const approach = shots.map(shotStrokesGained).filter((s) => s.category === 'approach');
   return bands
-    .map(([label, lo, hi]) => {
-      const inBand = shots
-        .map(shotStrokesGained)
-        .filter((s) => s.category === 'approach' && s.shot.startDist > lo && s.shot.startDist <= hi);
+    .map((b) => {
+      const inBand = approach.filter((s) => s.shot.startDist > b.loM && (b.hiM === null || s.shot.startDist <= b.hiM));
       const avgSg = inBand.length ? inBand.reduce((a, s) => a + s.sg, 0) / inBand.length : 0;
-      return { label, shots: inBand.length, avgSg };
+      return { ...b, shots: inBand.length, avgSg };
     })
     .filter((b) => b.shots > 0);
 }
