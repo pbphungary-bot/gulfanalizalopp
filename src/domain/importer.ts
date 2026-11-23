@@ -1,5 +1,6 @@
 import { unzipSync } from 'fflate';
 import { DISTANCE_CLUBS } from './clubs';
+import { M_PER_YD } from './units';
 
 /* ------------------------------------------------------------------ */
 /* 1. Reading files into a grid of text cells                          */
@@ -260,8 +261,8 @@ export function normalizeClub(raw: string): string | null {
 
 export interface ImportShot {
   club: string;
-  carry: number; // yards
-  total: number | null; // yards
+  carry: number; // metres
+  total: number | null; // metres
   clubSpeed: number | null;
   ballSpeed: number | null;
   /** True when left out of the average as an obvious mishit or bad reading */
@@ -305,6 +306,8 @@ export interface PreviewOptions {
   mapping?: Mapping;
   /** Unit for the whole file, or for sessions with no unit of their own */
   unit?: Unit;
+  /** Unit to assume when the file does not say; defaults to yards */
+  defaultUnit?: Unit;
   filterMishits?: boolean;
   /** Per-session units, for files that mix yards and meters */
   sessionUnits?: Record<string, Unit>;
@@ -314,7 +317,6 @@ export interface PreviewOptions {
   aliases?: Record<string, string>;
 }
 
-const YD_PER_M = 1.0936133;
 export const MISHIT_LOW = 0.75;
 export const MISHIT_HIGH = 1.25;
 
@@ -330,7 +332,7 @@ export function buildPreview(
 ): ImportPreview {
   const mapping = opts.mapping ?? detectMapping(table.headers);
   const detected = detectUnit(table.headers, mapping, table.units);
-  const unit = opts.unit ?? detected ?? 'yards';
+  const unit = opts.unit ?? detected ?? opts.defaultUnit ?? 'yards';
   const filter = opts.filterMishits ?? true;
   const warnings: string[] = [];
   if (mapping.club === undefined) warnings.push('No club column found. Choose which column holds the club.');
@@ -359,7 +361,7 @@ export function buildPreview(
         if (!/putter/i.test(name) && alias !== '') unmatchedCount.set(name, (unmatchedCount.get(name) ?? 0) + 1);
         continue;
       }
-      const factor = unitFor(session) === 'meters' ? YD_PER_M : 1;
+      const factor = unitFor(session) === 'yards' ? M_PER_YD : 1;
       const num = (f: Field) => {
         const i = mapping[f];
         if (i === undefined) return null;
