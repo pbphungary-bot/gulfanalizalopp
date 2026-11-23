@@ -35,7 +35,7 @@ export function useStyles() {
 }
 
 /** Stack screens that show a native header. That header already clears the status bar. */
-const SCREENS_WITH_HEADER = ['Round', 'RoundReview', 'Session', 'Drill'];
+const SCREENS_WITH_HEADER = ['Round', 'RoundReview', 'Session', 'Drill', 'AddCourse'];
 
 /**
  * Scrollable screen that centers a max-width column on tablets. Screens with a native header

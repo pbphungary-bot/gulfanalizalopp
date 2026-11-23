@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getProfile } from './src/db';
 import type { Profile } from './src/domain/types';
 import type { RootStackParams, TabParams } from './src/navigation';
+import { AddCourse } from './src/screens/AddCourse';
 import { Coach } from './src/screens/Coach';
 import { Fitness } from './src/screens/Fitness';
 import { DrillScreen } from './src/screens/Drill';
@@ -91,6 +92,7 @@ function Root() {
             <Stack.Screen name="Round" component={RoundScreen} options={{ title: t('nav.round') }} />
             <Stack.Screen name="RoundReview" component={RoundReview} options={{ title: t('nav.review') }} />
             <Stack.Screen name="Session" component={Session} options={{ title: t('nav.session') }} />
+            <Stack.Screen name="AddCourse" component={AddCourse} options={{ title: t('nav.addCourse') }} />
             <Stack.Screen name="Drill" component={DrillScreen} options={{ title: t('nav.drill') }} />
           </Stack.Navigator>
         </NavigationContainer>
