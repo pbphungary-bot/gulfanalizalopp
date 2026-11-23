@@ -1,6 +1,7 @@
 import { DRILLS } from './drills';
 import { approachBands, roundStrokesGained, SgTotals } from './strokesGained';
 import type { Drill, DrillLog, Msg, PlannedSession, Profile, SgCategory, Shot, TFn, WeeklyPlan } from './types';
+import type { UnitSystem } from './units';
 
 const CATS: SgCategory[] = ['tee', 'approach', 'short', 'putting'];
 
@@ -15,7 +16,7 @@ export interface Diagnosis {
 /** Need at least this many holes of shot data before trusting the numbers. */
 const MIN_ROUNDS = 2;
 
-export function diagnose(shotsByRound: Shot[][]): Diagnosis {
+export function diagnose(shotsByRound: Shot[][], system: UnitSystem = 'metric'): Diagnosis {
   const rounds = shotsByRound.filter((r) => r.length > 0);
   const sum: SgTotals = { tee: 0, approach: 0, short: 0, putting: 0, total: 0 };
   for (const shots of rounds) {
@@ -38,10 +39,15 @@ export function diagnose(shotsByRound: Shot[][]): Diagnosis {
     if (!hasEnoughData) messages.push({ k: 'diag.few' });
     messages.push({ k: 'diag.costing', p: { cat: { k: `sg.${weakest}` }, v: { n: avg[weakest], d: 1 } } });
     if (weakest === 'approach') {
-      const bands = approachBands(rounds.flat()).filter((b) => b.shots >= 3);
+      const bands = approachBands(rounds.flat(), system).filter((b) => b.shots >= 3);
       if (bands.length) {
         const worst = bands.reduce((a, b) => (a.avgSg <= b.avgSg ? a : b));
-        messages.push({ k: 'diag.weakBand', p: { label: worst.label, v: { n: worst.avgSg, d: 2 } } });
+        const lo = { m: worst.loM, unit: false as const };
+        messages.push(
+          worst.hiM === null
+            ? { k: 'diag.weakBandOpen', p: { lo, u: { unit: 'long' }, v: { n: worst.avgSg, d: 2 } } }
+            : { k: 'diag.weakBand', p: { lo, hi: { m: worst.hiM, unit: false as const }, u: { unit: 'long' }, v: { n: worst.avgSg, d: 2 } } },
+        );
       }
     }
     const best = CATS.reduce((a, b) => (avg[a] >= avg[b] ? a : b));

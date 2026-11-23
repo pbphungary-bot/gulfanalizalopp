@@ -4,6 +4,33 @@ import { DEFAULT_PROFILE } from '../domain/types';
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
+const M_PER_YD = 0.9144;
+const M_PER_FT = 0.3048;
+
+/**
+ * Earlier versions stored distances in yards (feet on the green). From now on everything is in
+ * metres. This converts existing rows once, all or nothing, and records that it has run.
+ */
+async function migrateToMetres(db: SQLite.SQLiteDatabase): Promise<void> {
+  const done = await db.getFirstAsync<{ value: string }>("SELECT value FROM kv WHERE key = 'migration:metres'");
+  if (done) return;
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `UPDATE shots SET
+         start_dist = start_dist * CASE WHEN start_lie = 'green' THEN ? ELSE ? END,
+         end_dist = end_dist * CASE WHEN end_lie = 'green' THEN ? ELSE ? END`,
+      M_PER_FT, M_PER_YD, M_PER_FT, M_PER_YD,
+    );
+    // These tables are created on first use, so they may not exist yet.
+    for (const [table, columns] of [['club_distances', ['carry', 'total']], ['monitor_shots', ['carry', 'total']]] as const) {
+      const exists = await db.getFirstAsync<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", table);
+      if (!exists) continue;
+      for (const col of columns) await db.runAsync(`UPDATE ${table} SET ${col} = ${col} * ?`, M_PER_YD);
+    }
+    await db.runAsync("INSERT INTO kv (key, value) VALUES ('migration:metres', '\"done\"')");
+  });
+}
+
 /** Local-first: everything lives on the device so rounds work with no signal. */
 export function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
@@ -32,6 +59,7 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
         );
       `);
       await db.execAsync('PRAGMA foreign_keys = ON;');
+      await migrateToMetres(db);
       return db;
     })();
   }
