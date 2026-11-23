@@ -1,3 +1,14 @@
+/** A value that can be dropped into a translated sentence. */
+export type MsgParam = string | number | Msg | { n: number; d: number };
+
+/** Language-neutral message: a dictionary key plus values. Translated only when shown. */
+export interface Msg {
+  k: string;
+  p?: Record<string, MsgParam>;
+}
+
+export type TFn = (key: string, params?: Record<string, MsgParam>) => string;
+
 export type Lie = 'tee' | 'fairway' | 'rough' | 'sand' | 'recovery' | 'green' | 'holed' | 'penalty';
 
 export type SgCategory = 'tee' | 'approach' | 'short' | 'putting';
@@ -73,22 +84,21 @@ export interface DrillLog {
   note: string;
 }
 
+/** Drill text lives in the translation files under drill.<id>.name / goal / step.N / rule. */
 export interface Drill {
   id: string;
-  name: string;
   category: SgCategory;
   minutes: number;
   needs: 'range' | 'putting' | 'short' | 'none';
-  goal: string;
-  steps: string[];
-  /** Describes what counts as one success so results are comparable */
-  successRule: string;
+  /** Number of instruction steps in the translation files */
+  steps: number;
 }
 
 export interface PlannedSession {
   day: number; // 0 = Monday
   kind: 'practice' | 'gym' | 'round' | 'recovery';
-  title: string;
+  /** Only present on plans saved by older versions; titles are now built from kind and category */
+  title?: string;
   minutes: number;
   category?: SgCategory;
   drillIds?: string[];
@@ -99,6 +109,7 @@ export interface WeeklyPlan {
   createdAt: string;
   focus: SgCategory;
   allocation: Record<SgCategory, number>; // percentages summing to 100
-  rationale: string[];
+  /** Messages; plans saved by older versions hold plain text instead */
+  rationale: (Msg | string)[];
   sessions: PlannedSession[];
 }

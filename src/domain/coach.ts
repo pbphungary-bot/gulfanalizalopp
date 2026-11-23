@@ -1,7 +1,6 @@
 import { DRILLS } from './drills';
 import { approachBands, roundStrokesGained, SgTotals } from './strokesGained';
-import type { Drill, DrillLog, PlannedSession, Profile, SgCategory, Shot, WeeklyPlan } from './types';
-import { SG_LABEL } from './types';
+import type { Drill, DrillLog, Msg, PlannedSession, Profile, SgCategory, Shot, TFn, WeeklyPlan } from './types';
 
 const CATS: SgCategory[] = ['tee', 'approach', 'short', 'putting'];
 
@@ -9,7 +8,7 @@ export interface Diagnosis {
   roundsAnalyzed: number;
   avgPerRound: SgTotals;
   weakest: SgCategory | null;
-  messages: string[];
+  messages: Msg[];
   hasEnoughData: boolean;
 }
 
@@ -29,29 +28,25 @@ export function diagnose(shotsByRound: Shot[][]): Diagnosis {
     tee: sum.tee / n, approach: sum.approach / n, short: sum.short / n, putting: sum.putting / n, total: sum.total / n,
   };
   const hasEnoughData = rounds.length >= MIN_ROUNDS;
-  const messages: string[] = [];
+  const messages: Msg[] = [];
   let weakest: SgCategory | null = null;
 
   if (rounds.length === 0) {
-    messages.push('Record a round to get your first diagnosis.');
+    messages.push({ k: 'diag.none' });
   } else {
     weakest = CATS.reduce((a, b) => (avg[a] <= avg[b] ? a : b));
-    if (!hasEnoughData) {
-      messages.push(`Only ${rounds.length} round recorded. Treat this as an early indication, not a verdict.`);
-    }
-    messages.push(
-      `${SG_LABEL[weakest]} is costing you the most: ${avg[weakest].toFixed(1)} strokes per round against the baseline.`,
-    );
+    if (!hasEnoughData) messages.push({ k: 'diag.few' });
+    messages.push({ k: 'diag.costing', p: { cat: { k: `sg.${weakest}` }, v: { n: avg[weakest], d: 1 } } });
     if (weakest === 'approach') {
       const bands = approachBands(rounds.flat()).filter((b) => b.shots >= 3);
       if (bands.length) {
         const worst = bands.reduce((a, b) => (a.avgSg <= b.avgSg ? a : b));
-        messages.push(`Your weakest approach range is ${worst.label} (${worst.avgSg.toFixed(2)} per shot).`);
+        messages.push({ k: 'diag.weakBand', p: { label: worst.label, v: { n: worst.avgSg, d: 2 } } });
       }
     }
     const best = CATS.reduce((a, b) => (avg[a] >= avg[b] ? a : b));
     if (best !== weakest && avg[best] > 0) {
-      messages.push(`${SG_LABEL[best]} is a strength. Don't over-practice it.`);
+      messages.push({ k: 'diag.strength', p: { cat: { k: `sg.${best}` } } });
     }
   }
   return { roundsAnalyzed: rounds.length, avgPerRound: avg, weakest, messages, hasEnoughData };
@@ -118,11 +113,20 @@ function pickDrills(pool: Drill[], minutes: number, seed: number): string[] {
 }
 
 const GYM_ROTATION: NonNullable<PlannedSession['gymTemplate']>[] = ['strength', 'power', 'mobility'];
-const GYM_TITLE = {
-  strength: 'Gym: Golf strength',
-  power: 'Gym: Rotational power',
-  mobility: 'Gym: Mobility',
-} as const;
+
+/** Display title for a planned session, built from what it is so it follows the chosen language. */
+export function sessionTitle(s: PlannedSession, t: TFn): string {
+  switch (s.kind) {
+    case 'round':
+      return t('plan.round');
+    case 'recovery':
+      return t('plan.recovery');
+    case 'gym':
+      return t(`plan.gym.${s.gymTemplate ?? 'strength'}`);
+    case 'practice':
+      return t('plan.practice', { cat: t(`sg.${s.category ?? 'approach'}`) });
+  }
+}
 
 /**
  * Build a weekly plan. `roundDay` (0=Mon … 6=Sun) is the day the player intends to play;
@@ -139,20 +143,18 @@ export function buildWeeklyPlan(
   const allocation = allocate(diag, logs);
   const order = [...CATS].sort((a, b) => allocation[b] - allocation[a]);
 
-  const rationale: string[] = [...diag.messages];
-  rationale.push(
-    `Time split — ${CATS.map((c) => `${SG_LABEL[c]} ${allocation[c]}%`).join(', ')}.`,
-  );
+  const rationale: Msg[] = [...diag.messages];
+  rationale.push({ k: 'plan.split', p: { tee: allocation.tee, approach: allocation.approach, short: allocation.short, putting: allocation.putting } });
   for (const c of CATS) {
     const m = mastery(logs, c);
     if (m !== null && m >= 0.7) {
-      rationale.push(`${SG_LABEL[c]} drills are going well (${Math.round(m * 100)}% success), so it gets less time.`);
+      rationale.push({ k: 'plan.mastery', p: { cat: { k: `sg.${c}` }, pct: Math.round(m * 100) } });
     }
   }
 
   const sessions: PlannedSession[] = [];
   const used = new Set<number>([roundDay]);
-  sessions.push({ day: roundDay, kind: 'round', title: 'Play a round and track every shot', minutes: 240 });
+  sessions.push({ day: roundDay, kind: 'round', minutes: 240 });
 
   // Choose practice days: spread through the week, never day-before a round if possible.
   const free = [0, 1, 2, 3, 4, 5, 6].filter((d) => !used.has(d));
@@ -186,7 +188,6 @@ export function buildWeeklyPlan(
       day,
       kind: 'practice',
       category: cat,
-      title: `${SG_LABEL[cat]} practice`,
       minutes: perSessionMinutes,
       drillIds,
     });
@@ -204,7 +205,6 @@ export function buildWeeklyPlan(
         day: d,
         kind: 'gym',
         gymTemplate: dayBeforeRound ? 'mobility' : template,
-        title: GYM_TITLE[dayBeforeRound ? 'mobility' : template],
         minutes: 45,
       });
       g++;
@@ -213,7 +213,7 @@ export function buildWeeklyPlan(
 
   const dayBeforeBusy = sessions.some((s) => s.day === pdBefore);
   if (!dayBeforeBusy) {
-    sessions.push({ day: pdBefore, kind: 'recovery', title: 'Light mobility before round day', minutes: 20 });
+    sessions.push({ day: pdBefore, kind: 'recovery', minutes: 20 });
   }
 
   sessions.sort((a, b) => a.day - b.day);
