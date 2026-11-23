@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { Body, Button, Card, Chip, ChipRow, Eyebrow, Field, H2, Row } from '../components/ui';
 import { addClubDistance, deleteClubDistance, listClubDistances } from '../db/clubs';
-import { DISTANCE_CLUBS, DistanceSource, GAP_TEXT, gaps, history, summarize } from '../domain/clubs';
+import { DISTANCE_CLUBS, DistanceSource, gaps, history, summarize } from '../domain/clubs';
+import { useI18n } from '../i18n';
 import { space, useTheme } from '../theme';
 import { useLoad } from '../useLoad';
 import { ImportClubData } from './ImportClubData';
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleDateString();
-
 export function ClubDistances() {
   const { c } = useTheme();
+  const { t, tn, date } = useI18n();
   const { data, reload } = useLoad(listClubDistances);
   const [club, setClub] = useState('7i');
   const [carry, setCarry] = useState('');
@@ -24,21 +24,22 @@ export function ClubDistances() {
   const summaries = summarize(entries);
   const gapList = gaps(summaries);
   const recorded = summaries.filter((s) => s.latest).length;
+  const dec = (s: string) => parseFloat(s.replace(',', '.'));
 
   const save = async () => {
-    const cy = parseFloat(carry);
-    const ty = total.trim() === '' ? null : parseFloat(total);
+    const cy = dec(carry);
+    const ty = total.trim() === '' ? null : dec(total);
     const sh = shots.trim() === '' ? null : parseInt(shots, 10);
     if (Number.isNaN(cy) || cy < 20 || cy > 400) {
-      Alert.alert('Check the carry distance', 'Enter the carry in yards, between 20 and 400.');
+      Alert.alert(t('cd.errCarryTitle'), t('cd.errCarryBody'));
       return;
     }
     if (ty !== null && (Number.isNaN(ty) || ty < cy || ty > 500)) {
-      Alert.alert('Check the total distance', 'Total can’t be shorter than carry. Leave it empty if you don’t know it.');
+      Alert.alert(t('cd.errTotalTitle'), t('cd.errTotalBody'));
       return;
     }
     if (sh !== null && (Number.isNaN(sh) || sh < 1)) {
-      Alert.alert('Check the shot count', 'Enter how many shots the average is based on, or leave it empty.');
+      Alert.alert(t('cd.errShotsTitle'), t('cd.errShotsBody'));
       return;
     }
     await addClubDistance({
@@ -51,9 +52,9 @@ export function ClubDistances() {
   };
 
   const remove = (id: number) =>
-    Alert.alert('Delete this entry?', 'This removes it from the club’s history.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteClubDistance(id); reload(); } },
+    Alert.alert(t('cd.delTitle'), t('cd.delBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: async () => { await deleteClubDistance(id); reload(); } },
     ]);
 
   return (
@@ -61,75 +62,75 @@ export function ClubDistances() {
       <ImportClubData onSaved={reload} />
 
       <Card>
-        <H2>Add a distance</H2>
-        <Body muted>Type it in, or enter the average from your launch monitor. Add a new one whenever your numbers change.</Body>
-        <Body muted>Club</Body>
+        <H2>{t('cd.addTitle')}</H2>
+        <Body muted>{t('cd.addIntro')}</Body>
+        <Body muted>{t('cd.club')}</Body>
         <ChipRow>
           {DISTANCE_CLUBS.map((cl) => (
             <Chip key={cl} label={cl} selected={club === cl} onPress={() => setClub(cl)} />
           ))}
         </ChipRow>
         <ChipRow>
-          <Chip label="Typed in by hand" selected={source === 'manual'} onPress={() => setSource('manual')} />
-          <Chip label="Launch monitor average" selected={source === 'monitor'} onPress={() => setSource('monitor')} />
+          <Chip label={t('cd.byHand')} selected={source === 'manual'} onPress={() => setSource('manual')} />
+          <Chip label={t('cd.monitorAvg')} selected={source === 'monitor'} onPress={() => setSource('monitor')} />
         </ChipRow>
-        <Field label="Carry (yards)" value={carry} onChangeText={setCarry} keyboardType="numeric" />
-        <Field label="Total (yards, optional)" value={total} onChangeText={setTotal} keyboardType="numeric" />
+        <Field label={t('cd.carry')} value={carry} onChangeText={setCarry} keyboardType="decimal-pad" />
+        <Field label={t('cd.total')} value={total} onChangeText={setTotal} keyboardType="decimal-pad" />
         {source === 'monitor' && (
-          <Field label="Number of shots in the average (optional)" value={shots} onChangeText={setShots} keyboardType="numeric" />
+          <Field label={t('cd.shotsCount')} value={shots} onChangeText={setShots} keyboardType="numeric" />
         )}
-        <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder="e.g. indoors, windy, new shafts" />
-        <Button label={`Save ${club} distance`} onPress={save} disabled={carry.trim() === ''} />
+        <Field label={t('cd.note')} value={note} onChangeText={setNote} placeholder={t('cd.noteEx')} />
+        <Button label={t('cd.saveClub', { club })} onPress={save} disabled={carry.trim() === ''} />
       </Card>
 
       <Card>
-        <H2>Your bag</H2>
-        {recorded === 0 && <Body muted>No distances yet. Add your first club above.</Body>}
+        <H2>{t('cd.bag')}</H2>
+        {recorded === 0 && <Body muted>{t('cd.none')}</Body>}
         {summaries.map((s) => {
           const isOpen = open === s.club;
           return (
             <View key={s.club}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${s.club} history`}
+                accessibilityLabel={t('cd.history', { club: s.club })}
                 onPress={() => setOpen(isOpen ? null : s.club)}
                 style={{ minHeight: 48, justifyContent: 'center' }}
               >
                 <Row style={{ justifyContent: 'space-between' }}>
                   <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', width: 72 }}>{s.club}</Text>
                   <Text style={{ color: s.latest ? c.text : c.muted, fontSize: 18, fontWeight: '800', flex: 1 }}>
-                    {s.latest ? `${Math.round(s.latest.carry)} yd` : '–'}
+                    {s.latest ? `${Math.round(s.latest.carry)} ${t('unit.yd')}` : '–'}
                   </Text>
                   {s.delta !== null && s.delta !== 0 && (
                     <Text style={{ color: s.delta > 0 ? c.good : c.bad, fontWeight: '700' }}>
                       {s.delta > 0 ? '+' : ''}{Math.round(s.delta)}
                     </Text>
                   )}
-                  <Text style={{ color: c.muted, fontSize: 12, width: 78, textAlign: 'right' }}>
-                    {s.latest ? fmtDate(s.latest.recordedAt) : ''}
+                  <Text style={{ color: c.muted, fontSize: 12, width: 92, textAlign: 'right' }}>
+                    {s.latest ? date(s.latest.recordedAt) : ''}
                   </Text>
                 </Row>
               </Pressable>
               {isOpen && (
                 <View style={{ gap: space.sm, paddingBottom: space.md }}>
-                  {history(entries, s.club).length === 0 && <Body muted>Nothing recorded for {s.club} yet.</Body>}
+                  {history(entries, s.club).length === 0 && <Body muted>{t('cd.nothing', { club: s.club })}</Body>}
                   {history(entries, s.club).map((e) => (
                     <Row key={e.id} style={{ justifyContent: 'space-between' }}>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: c.text }}>
-                          {Math.round(e.carry)} yd carry{e.total ? ` · ${Math.round(e.total)} total` : ''}
+                          {t('cd.carryLine', { n: Math.round(e.carry) })}{e.total ? ` · ${t('cd.totalLine', { n: Math.round(e.total) })}` : ''}
                         </Text>
                         <Text style={{ color: c.muted, fontSize: 12 }}>
-                          {fmtDate(e.recordedAt)} · {e.source === 'monitor' ? `launch monitor${e.shots ? `, ${e.shots} shots` : ''}` : 'typed in'}
+                          {date(e.recordedAt)} · {e.source === 'monitor' ? (e.shots ? t('cd.monitorShots', { n: e.shots }) : t('cd.monitor')) : t('cd.typed')}
                           {e.note ? ` · ${e.note}` : ''}
                         </Text>
                       </View>
-                      <Pressable accessibilityRole="button" accessibilityLabel="Delete entry" onPress={() => remove(e.id)} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
+                      <Pressable accessibilityRole="button" accessibilityLabel={t('cd.delEntry')} onPress={() => remove(e.id)} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
                         <Text style={{ color: c.bad, fontSize: 18 }}>✕</Text>
                       </Pressable>
                     </Row>
                   ))}
-                  <Button label={`Update ${s.club}`} variant="secondary" onPress={() => setClub(s.club)} />
+                  <Button label={t('cd.update', { club: s.club })} variant="secondary" onPress={() => setClub(s.club)} />
                 </View>
               )}
             </View>
@@ -139,16 +140,16 @@ export function ClubDistances() {
 
       {gapList.length > 0 && (
         <Card>
-          <H2>Gaps between clubs</H2>
-          <Body muted>Based on each club’s latest carry. Flags are rules of thumb, not equipment advice.</Body>
+          <H2>{t('cd.gaps')}</H2>
+          <Body muted>{t('cd.gapsIntro')}</Body>
           {gapList.map((g) => (
             <View key={`${g.from}-${g.to}`} style={{ paddingVertical: 4 }}>
               <Row style={{ justifyContent: 'space-between' }}>
                 <Body>{g.from} → {g.to}</Body>
-                <Text style={{ color: g.flag ? c.bad : c.text, fontWeight: '800' }}>{Math.round(g.yards)} yd</Text>
+                <Text style={{ color: g.flag ? c.bad : c.text, fontWeight: '800' }}>{Math.round(g.yards)} {t('unit.yd')}</Text>
               </Row>
-              {g.flag && <Eyebrow>{GAP_TEXT[g.flag]}</Eyebrow>}
-              {g.skipped > 0 && <Body muted style={{ fontSize: 12 }}>{g.skipped} club{g.skipped === 1 ? '' : 's'} between these not recorded yet</Body>}
+              {g.flag && <Eyebrow>{t(`gap.${g.flag}`)}</Eyebrow>}
+              {g.skipped > 0 && <Body muted style={{ fontSize: 12 }}>{tn('cd.skipped', g.skipped)}</Body>}
             </View>
           ))}
         </Card>
