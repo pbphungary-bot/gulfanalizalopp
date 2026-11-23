@@ -1,5 +1,6 @@
 import type { MsgParam, TFn } from '../domain/types';
 import { longFromM, longUnit, shortUnit, UnitSystem } from '../domain/units';
+import { courseEn, courseHu } from './courses';
 import { en } from './en';
 import { hu } from './hu';
 
@@ -7,7 +8,7 @@ export type Lang = 'en' | 'hu';
 export const LANGS: Lang[] = ['en', 'hu'];
 export const LANG_NAME: Record<Lang, string> = { en: 'English', hu: 'Magyar' };
 
-const DICTS: Record<Lang, Record<string, string>> = { en, hu };
+const DICTS: Record<Lang, Record<string, string>> = { en: { ...en, ...courseEn }, hu: { ...hu, ...courseHu } };
 
 export function fmtNum(n: number, decimals: number | undefined, lang: Lang): string {
   const s = decimals === undefined ? String(n) : n.toFixed(decimals);

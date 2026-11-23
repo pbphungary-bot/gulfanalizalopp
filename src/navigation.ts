@@ -4,6 +4,7 @@ export type RootStackParams = {
   RoundReview: { roundId: number };
   Session: { dayIndex: number };
   Drill: { drillId: string };
+  AddCourse: { courseId?: string } | undefined;
 };
 export type TabParams = {
   Home: undefined;
