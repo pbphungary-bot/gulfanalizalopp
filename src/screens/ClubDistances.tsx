@@ -10,7 +10,7 @@ import { ImportClubData } from './ImportClubData';
 
 export function ClubDistances() {
   const { c } = useTheme();
-  const { t, tn, date } = useI18n();
+  const { t, tn, date, len, lenNum, unitLong, parseLen } = useI18n();
   const { data, reload } = useLoad(listClubDistances);
   const [club, setClub] = useState('7i');
   const [carry, setCarry] = useState('');
@@ -24,17 +24,16 @@ export function ClubDistances() {
   const summaries = summarize(entries);
   const gapList = gaps(summaries);
   const recorded = summaries.filter((s) => s.latest).length;
-  const dec = (s: string) => parseFloat(s.replace(',', '.'));
 
   const save = async () => {
-    const cy = dec(carry);
-    const ty = total.trim() === '' ? null : dec(total);
+    const cy = parseLen(carry);
+    const ty = total.trim() === '' ? null : parseLen(total);
     const sh = shots.trim() === '' ? null : parseInt(shots, 10);
-    if (Number.isNaN(cy) || cy < 20 || cy > 400) {
-      Alert.alert(t('cd.errCarryTitle'), t('cd.errCarryBody'));
+    if (Number.isNaN(cy) || cy < 18 || cy > 370) {
+      Alert.alert(t('cd.errCarryTitle'), t('cd.errCarryBody', { unit: unitLong, lo: Math.round(lenNum(18)), hi: Math.round(lenNum(370)) }));
       return;
     }
-    if (ty !== null && (Number.isNaN(ty) || ty < cy || ty > 500)) {
+    if (ty !== null && (Number.isNaN(ty) || ty < cy || ty > 460)) {
       Alert.alert(t('cd.errTotalTitle'), t('cd.errTotalBody'));
       return;
     }
@@ -74,8 +73,8 @@ export function ClubDistances() {
           <Chip label={t('cd.byHand')} selected={source === 'manual'} onPress={() => setSource('manual')} />
           <Chip label={t('cd.monitorAvg')} selected={source === 'monitor'} onPress={() => setSource('monitor')} />
         </ChipRow>
-        <Field label={t('cd.carry')} value={carry} onChangeText={setCarry} keyboardType="decimal-pad" />
-        <Field label={t('cd.total')} value={total} onChangeText={setTotal} keyboardType="decimal-pad" />
+        <Field label={t('cd.carry', { unit: unitLong })} value={carry} onChangeText={setCarry} keyboardType="decimal-pad" />
+        <Field label={t('cd.total', { unit: unitLong })} value={total} onChangeText={setTotal} keyboardType="decimal-pad" />
         {source === 'monitor' && (
           <Field label={t('cd.shotsCount')} value={shots} onChangeText={setShots} keyboardType="numeric" />
         )}
@@ -99,11 +98,11 @@ export function ClubDistances() {
                 <Row style={{ justifyContent: 'space-between' }}>
                   <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', width: 72 }}>{s.club}</Text>
                   <Text style={{ color: s.latest ? c.text : c.muted, fontSize: 18, fontWeight: '800', flex: 1 }}>
-                    {s.latest ? `${Math.round(s.latest.carry)} ${t('unit.yd')}` : '–'}
+                    {s.latest ? len(s.latest.carry) : '–'}
                   </Text>
                   {s.delta !== null && s.delta !== 0 && (
                     <Text style={{ color: s.delta > 0 ? c.good : c.bad, fontWeight: '700' }}>
-                      {s.delta > 0 ? '+' : ''}{Math.round(s.delta)}
+                      {s.delta > 0 ? '+' : ''}{Math.round(lenNum(s.delta))}
                     </Text>
                   )}
                   <Text style={{ color: c.muted, fontSize: 12, width: 92, textAlign: 'right' }}>
@@ -118,7 +117,7 @@ export function ClubDistances() {
                     <Row key={e.id} style={{ justifyContent: 'space-between' }}>
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: c.text }}>
-                          {t('cd.carryLine', { n: Math.round(e.carry) })}{e.total ? ` · ${t('cd.totalLine', { n: Math.round(e.total) })}` : ''}
+                          {t('cd.carryLine', { d: len(e.carry) })}{e.total ? ` · ${t('cd.totalLine', { d: len(e.total) })}` : ''}
                         </Text>
                         <Text style={{ color: c.muted, fontSize: 12 }}>
                           {date(e.recordedAt)} · {e.source === 'monitor' ? (e.shots ? t('cd.monitorShots', { n: e.shots }) : t('cd.monitor')) : t('cd.typed')}
@@ -146,7 +145,7 @@ export function ClubDistances() {
             <View key={`${g.from}-${g.to}`} style={{ paddingVertical: 4 }}>
               <Row style={{ justifyContent: 'space-between' }}>
                 <Body>{g.from} → {g.to}</Body>
-                <Text style={{ color: g.flag ? c.bad : c.text, fontWeight: '800' }}>{Math.round(g.yards)} {t('unit.yd')}</Text>
+                <Text style={{ color: g.flag ? c.bad : c.text, fontWeight: '800' }}>{len(g.metres)}</Text>
               </Row>
               {g.flag && <Eyebrow>{t(`gap.${g.flag}`)}</Eyebrow>}
               {g.skipped > 0 && <Body muted style={{ fontSize: 12 }}>{tn('cd.skipped', g.skipped)}</Body>}

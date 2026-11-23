@@ -10,11 +10,11 @@ import { ClubDistances } from './ClubDistances';
 const CATS: SgCategory[] = ['tee', 'approach', 'short', 'putting'];
 
 export function MyGame() {
-  const { t, tm } = useI18n();
+  const { t, tm, system } = useI18n();
   const [view, setView] = useState<'overview' | 'clubs'>('overview');
   const { data } = useLoad(async () => {
     const [rounds, logs] = await Promise.all([shotsByRound(10), listDrillLogs()]);
-    return { diag: diagnose(rounds.map((r) => r.shots)), logs, count: rounds.length };
+    return { diag: diagnose(rounds.map((r) => r.shots), system), logs, count: rounds.length };
   });
 
   return (

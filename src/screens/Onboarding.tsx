@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Switch, Text } from 'react-native';
 import { Body, Button, Card, Field, H1, H2, Row, Screen } from '../components/ui';
 import { LanguageToggle } from '../components/LanguageToggle';
+import { UnitsToggle } from '../components/UnitsToggle';
 import { saveProfile } from '../db';
 import { useI18n } from '../i18n';
 import { DEFAULT_PROFILE, Profile } from '../domain/types';
@@ -43,6 +44,7 @@ export function Onboarding({ onDone }: { onDone: (p: Profile) => void }) {
     <Screen>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <H1>{t('onb.title')}</H1>
+        <UnitsToggle />
         <LanguageToggle />
       </Row>
       <Body muted>{t('onb.intro')}</Body>

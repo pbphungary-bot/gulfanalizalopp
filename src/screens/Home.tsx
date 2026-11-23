@@ -4,6 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LanguageToggle } from '../components/LanguageToggle';
+import { UnitsToggle } from '../components/UnitsToggle';
 import { Body, Button, Card, Eyebrow, H1, Row, Screen, StatCard } from '../components/ui';
 import { getPlan, listDrillLogs, shotsByRound } from '../db';
 import { diagnose, sessionTitle } from '../domain/coach';
@@ -21,14 +22,14 @@ const KIND_GLYPH: Record<PlannedSession['kind'], string> = { practice: '◎', gy
 
 export function Home({ profile }: { profile: Profile }) {
   const { c, isDark, setMode } = useTheme();
-  const { t, tm, tn, num, minutes } = useI18n();
+  const { t, tm, tn, num, minutes, system } = useI18n();
   const nav = useNavigation<Nav>();
   const { data } = useLoad(async () => {
     const [plan, rounds, logs] = await Promise.all([getPlan(), shotsByRound(10), listDrillLogs()]);
     return {
       plan,
       logs,
-      diag: diagnose(rounds.map((r) => r.shots)),
+      diag: diagnose(rounds.map((r) => r.shots), system),
       score: averageScore(rounds),
       sg: averageStrokesGained(rounds.slice(0, 5)),
     };
@@ -53,6 +54,7 @@ export function Home({ profile }: { profile: Profile }) {
           <H1>{t('home.title')}</H1>
           <Body muted>{t('home.journey', { target: profile.targetHandicap })}</Body>
         </View>
+        <UnitsToggle />
         <LanguageToggle />
         <Pressable
           accessibilityRole="button"
