@@ -18,6 +18,7 @@ import { Play } from './src/screens/Play';
 import { RoundScreen } from './src/screens/Round';
 import { RoundReview } from './src/screens/RoundReview';
 import { Session } from './src/screens/Session';
+import { I18nProvider, useI18n } from './src/i18n';
 import { ThemeProvider, useTheme } from './src/theme';
 
 const Tab = createBottomTabNavigator<TabParams>();
@@ -27,6 +28,7 @@ const GLYPH: Record<keyof TabParams, string> = { Home: '◉', Coach: '◈', Play
 
 function Tabs({ profile }: { profile: Profile }) {
   const { c } = useTheme();
+  const { t } = useI18n();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -41,17 +43,18 @@ function Tabs({ profile }: { profile: Profile }) {
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Home">{() => <Home profile={profile} />}</Tab.Screen>
-      <Tab.Screen name="Coach" options={{ title: 'AI Coach' }}>{() => <Coach profile={profile} />}</Tab.Screen>
-      <Tab.Screen name="Play" component={Play} options={{ title: 'Play' }} />
-      <Tab.Screen name="Fitness" component={Fitness} options={{ title: 'Fitness' }} />
-      <Tab.Screen name="MyGame" component={MyGame} options={{ title: 'My Game' }} />
+      <Tab.Screen name="Home" options={{ title: t('tab.home') }}>{() => <Home profile={profile} />}</Tab.Screen>
+      <Tab.Screen name="Coach" options={{ title: t('tab.coach') }}>{() => <Coach profile={profile} />}</Tab.Screen>
+      <Tab.Screen name="Play" component={Play} options={{ title: t('tab.play') }} />
+      <Tab.Screen name="Fitness" component={Fitness} options={{ title: t('tab.fitness') }} />
+      <Tab.Screen name="MyGame" component={MyGame} options={{ title: t('tab.mygame') }} />
     </Tab.Navigator>
   );
 }
 
 function Root() {
   const { c, isDark } = useTheme();
+  const { t } = useI18n();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -85,10 +88,10 @@ function Root() {
             <Stack.Screen name="Tabs" options={{ headerShown: false }}>
               {() => <Tabs profile={profile} />}
             </Stack.Screen>
-            <Stack.Screen name="Round" component={RoundScreen} options={{ title: 'Round' }} />
-            <Stack.Screen name="RoundReview" component={RoundReview} options={{ title: 'Round review' }} />
-            <Stack.Screen name="Session" component={Session} options={{ title: 'Session' }} />
-            <Stack.Screen name="Drill" component={DrillScreen} options={{ title: 'Log drill' }} />
+            <Stack.Screen name="Round" component={RoundScreen} options={{ title: t('nav.round') }} />
+            <Stack.Screen name="RoundReview" component={RoundReview} options={{ title: t('nav.review') }} />
+            <Stack.Screen name="Session" component={Session} options={{ title: t('nav.session') }} />
+            <Stack.Screen name="Drill" component={DrillScreen} options={{ title: t('nav.drill') }} />
           </Stack.Navigator>
         </NavigationContainer>
       )}
@@ -99,7 +102,9 @@ function Root() {
 export default function App() {
   return (
     <ThemeProvider>
-      <Root />
+      <I18nProvider>
+        <Root />
+      </I18nProvider>
     </ThemeProvider>
   );
 }

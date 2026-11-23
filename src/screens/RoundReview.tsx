@@ -4,11 +4,13 @@ import { Alert } from 'react-native';
 import { Body, Button, Card, H1, H2, Row, Screen, SgValue } from '../components/ui';
 import { deleteRound, getRound, shotsForRound } from '../db';
 import { approachBands, roundScore, roundStrokesGained } from '../domain/strokesGained';
-import { SG_LABEL, SgCategory } from '../domain/types';
+import type { SgCategory } from '../domain/types';
+import { useI18n } from '../i18n';
 import type { RootStackParams } from '../navigation';
 import { useLoad } from '../useLoad';
 
 export function RoundReview() {
+  const { t, num, date } = useI18n();
   const nav = useNavigation();
   const { params } = useRoute<RouteProp<RootStackParams, 'RoundReview'>>();
   const { data } = useLoad(async () => {
@@ -24,49 +26,49 @@ export function RoundReview() {
   const worst = cats.reduce((a, b) => (totals[a] <= totals[b] ? a : b));
 
   const remove = () =>
-    Alert.alert('Delete this round?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteRound(round.id); nav.goBack(); } },
+    Alert.alert(t('review.deleteTitle'), t('review.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: async () => { await deleteRound(round.id); nav.goBack(); } },
     ]);
 
   return (
     <Screen>
       <H1>{round.course}</H1>
       <Card>
-        <H2>Score</H2>
+        <H2>{t('review.score')}</H2>
         <Body style={{ fontSize: 40, fontWeight: '800' }}>{roundScore(shots)}</Body>
-        <Body muted>{shots.length} shots · {new Date(round.playedAt).toLocaleDateString()}</Body>
+        <Body muted>{t('review.shotsDate', { n: shots.length, date: date(round.playedAt) })}</Body>
       </Card>
       <Card>
-        <H2>Strokes gained</H2>
+        <H2>{t('review.sg')}</H2>
         {cats.map((c) => (
           <Row key={c} style={{ justifyContent: 'space-between' }}>
-            <Body>{SG_LABEL[c]}</Body>
+            <Body>{t(`sg.${c}`)}</Body>
             <SgValue value={totals[c]} />
           </Row>
         ))}
         <Row style={{ justifyContent: 'space-between' }}>
-          <Body style={{ fontWeight: '800' }}>Total</Body>
+          <Body style={{ fontWeight: '800' }}>{t('review.total')}</Body>
           <SgValue value={totals.total} />
         </Row>
-        <Body muted>Compared with a placeholder baseline. See the README before treating these as official benchmarks.</Body>
+        <Body muted>{t('review.placeholder')}</Body>
       </Card>
       <Card>
-        <H2>Your biggest opportunity</H2>
-        <Body>{SG_LABEL[worst]} lost the most strokes this round ({totals[worst].toFixed(2)}). The Coach tab will weight your next plan toward it.</Body>
+        <H2>{t('review.opp')}</H2>
+        <Body>{t('review.oppBody', { cat: t(`sg.${worst}`), v: { n: totals[worst], d: 2 } })}</Body>
       </Card>
       {bands.length > 0 && (
         <Card>
-          <H2>Approach by distance</H2>
+          <H2>{t('review.approachBands')}</H2>
           {bands.map((b) => (
             <Row key={b.label} style={{ justifyContent: 'space-between' }}>
-              <Body>{b.label} ({b.shots})</Body>
+              <Body>{b.label} ({num(b.shots)})</Body>
               <SgValue value={b.avgSg} size={16} />
             </Row>
           ))}
         </Card>
       )}
-      <Button label="Delete round" variant="danger" onPress={remove} />
+      <Button label={t('review.delete')} variant="danger" onPress={remove} />
     </Screen>
   );
 }
