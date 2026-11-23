@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Text } from 'react-native';
 import { Body, Button, Card, Chip, ChipRow, Field, H1, H2, Row, Screen } from '../components/ui';
 import { addShot, deleteLastShot, getRound, shotsForRound } from '../db';
+import { getCourse, getRoundPlan } from '../db/courses';
+import type { Course, Tee } from '../domain/courses';
 import { expectedStrokes } from '../domain/strokesGained';
 import type { Lie, Round, Shot } from '../domain/types';
 import { useI18n } from '../i18n';
@@ -25,6 +27,7 @@ export function RoundScreen() {
   const [round, setRound] = useState<Round | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
   const [hole, setHole] = useState(1);
+  const [plan, setPlan] = useState<{ course: Course; tee: Tee } | null>(null);
 
   const [par, setPar] = useState<3 | 4 | 5>(4);
   const [yardage, setYardage] = useState('');
@@ -41,6 +44,16 @@ export function RoundScreen() {
   }, [params.roundId]);
 
   useEffect(() => {
+    getRoundPlan(params.roundId)
+      .then(async (p) => {
+        const course = p ? await getCourse(p.courseId) : null;
+        const tee = course?.tees.find((x) => x.id === p?.teeId);
+        if (course && tee) setPlan({ course, tee });
+      })
+      .catch(() => {});
+  }, [params.roundId]);
+
+  useEffect(() => {
     refresh().then(({ s }) => {
       if (s.length) {
         const last = s[s.length - 1];
@@ -53,11 +66,14 @@ export function RoundScreen() {
   const holeShots = shots.filter((s) => s.hole === hole);
   const last = holeShots[holeShots.length - 1];
   const holeStarted = holeShots.length > 0;
-  const curPar = holeStarted ? holeShots[0].par : par;
+  const planned = plan && hole <= plan.course.holes.length
+    ? { par: plan.course.holes[hole - 1].par, si: plan.course.holes[hole - 1].si, length: plan.tee.lengths[hole - 1] }
+    : null;
+  const curPar = holeStarted ? holeShots[0].par : planned ? planned.par : par;
 
   const start = last
     ? { lie: last.endLie, dist: last.endDist }
-    : { lie: 'tee' as Lie, dist: parseLen(yardage) };
+    : { lie: 'tee' as Lie, dist: planned ? planned.length : parseLen(yardage) };
   const inputs = endLie === 'holed' ? 0 : endLie === 'green' ? parseShort(endDist) : parseLen(endDist);
   const canSave = !Number.isNaN(start.dist) && start.dist > 0 && (endLie === 'holed' || (!Number.isNaN(inputs) && inputs >= 0));
   const total = shots.length + shots.reduce((a, s) => a + s.penalty, 0);
@@ -114,7 +130,11 @@ export function RoundScreen() {
         <Text style={{ fontSize: 16, color: c.muted }}>{t('round.header', { course: round?.course ?? '', n: total })}</Text>
       </Row>
 
-      {!holeStarted && (
+      {planned && (
+        <Body muted>{t('course.holeInfo', { par: planned.par, si: planned.si, len: len(planned.length) })}</Body>
+      )}
+
+      {!holeStarted && !planned && (
         <Card>
           <H2>{t('round.setup')}</H2>
           <ChipRow>
