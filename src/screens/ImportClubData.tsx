@@ -21,7 +21,7 @@ const FIELD_KEY: Record<'club' | 'carry' | 'total', string> = {
 
 export function ImportClubData({ onSaved }: { onSaved: () => void }) {
   const { c } = useTheme();
-  const { t, tn } = useI18n();
+  const { t, tn, system, len } = useI18n();
   const [fileName, setFileName] = useState('');
   const [sheets, setSheets] = useState<Sheet[]>([]);
   const [sheetIdx, setSheetIdx] = useState(0);
@@ -44,13 +44,14 @@ export function ImportClubData({ onSaved }: { onSaved: () => void }) {
         ? buildPreview(table, {
             mapping: mapping ?? undefined,
             unit: unit ?? undefined,
+            defaultUnit: system === 'metric' ? 'meters' : 'yards',
             filterMishits,
             sessionUnits: Object.keys(sessionUnits).length ? sessionUnits : undefined,
             excludedSessions: excluded,
             aliases,
           })
         : null,
-    [table, mapping, unit, filterMishits, sessionUnits, excluded, aliases],
+    [table, mapping, unit, filterMishits, sessionUnits, excluded, aliases, system],
   );
 
   const resetChoices = () => {
@@ -97,7 +98,7 @@ export function ImportClubData({ onSaved }: { onSaved: () => void }) {
   if (preview) {
     if (preview.mapping.club === undefined) warnings.push(t('imp.w.noClub'));
     if (preview.mapping.carry === undefined) warnings.push(t('imp.w.noCarry'));
-    if (!unit && !preview.unitDetected && preview.sessions.length === 0) warnings.push(t('imp.w.assumeYards'));
+    if (!unit && !preview.unitDetected && preview.sessions.length === 0) warnings.push(t('imp.w.assumeDefault', { unit: t(system === 'metric' ? 'unit.metersAcc' : 'unit.yardsAcc') }));
     if (preview.sessions.length > 0 && !preview.unitDetected && Object.keys(sessionUnits).length === 0) warnings.push(t('imp.w.multi'));
     if (preview.clubs.some((a) => a.used < 5)) warnings.push(t('imp.w.few'));
   }
@@ -171,7 +172,7 @@ export function ImportClubData({ onSaved }: { onSaved: () => void }) {
               <Body muted>{t('imp.units')}</Body>
               <ChipRow>
                 <Chip label={t('imp.yards')} selected={preview.unit === 'yards'} onPress={() => setUnit('yards')} />
-                <Chip label={t('imp.metersConv')} selected={preview.unit === 'meters'} onPress={() => setUnit('meters')} />
+                <Chip label={t('imp.meters')} selected={preview.unit === 'meters'} onPress={() => setUnit('meters')} />
               </ChipRow>
             </View>
           ) : (
@@ -262,14 +263,14 @@ export function ImportClubData({ onSaved }: { onSaved: () => void }) {
                 key={a.club}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}
-                accessibilityLabel={`${a.club}, ${Math.round(a.carry)} ${t('unit.yards')}`}
+                accessibilityLabel={`${a.club}, ${len(a.carry)}`}
                 onPress={() => toggle(a.club)}
                 style={{ minHeight: 52, justifyContent: 'center', opacity: on ? 1 : 0.5 }}
               >
                 <Row style={{ justifyContent: 'space-between' }}>
                   <Text style={{ color: c.accent, fontSize: 20, width: 28 }}>{on ? '☑' : '☐'}</Text>
                   <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', width: 64 }}>{a.club}</Text>
-                  <Text style={{ color: c.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{Math.round(a.carry)} {t('unit.yd')}</Text>
+                  <Text style={{ color: c.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{len(a.carry)}</Text>
                   <Text style={{ color: c.muted, fontSize: 12, textAlign: 'right' }}>
                     {a.used === a.shots ? t('imp.shotsN', { n: a.shots }) : t('imp.ofShots', { used: a.used, n: a.shots })}
                   </Text>
