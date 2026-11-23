@@ -1,6 +1,8 @@
 /** Course and tee text, kept apart from the main dictionaries. English is the source of truth. */
 export const courseEn = {
   'nav.addCourse': 'Add a course',
+  'round.holeOutTitle': 'Finished this hole?',
+  'round.holeOutHint': 'Records the ball as holed and moves on to the next hole.',
   'round.prevHole': 'Previous hole',
   'round.nextHole': 'Next hole',
   'tee.black': 'Black', 'tee.white': 'White', 'tee.yellow': 'Yellow', 'tee.blue': 'Blue',
@@ -50,6 +52,8 @@ export const courseEn = {
 
 export const courseHu: Record<keyof typeof courseEn, string> = {
   'nav.addCourse': 'Pálya hozzáadása',
+  'round.holeOutTitle': 'Végeztél ezzel a lyukkal?',
+  'round.holeOutHint': 'Lyukba jutottként rögzíti a labdát, és a következő lyukra lép.',
   'round.prevHole': 'Előző lyuk',
   'round.nextHole': 'Következő lyuk',
   'tee.black': 'Fekete', 'tee.white': 'Fehér', 'tee.yellow': 'Sárga', 'tee.blue': 'Kék',

@@ -13,7 +13,7 @@ import type { RootStackParams } from '../navigation';
 import { useTheme } from '../theme';
 
 const CLUBS = ['Driver', '3W', '5W', 'Hybrid', '4i', '5i', '6i', '7i', '8i', '9i', 'PW', 'GW', 'SW', 'LW', 'Putter'];
-const END_LIES: Lie[] = ['fairway', 'rough', 'sand', 'recovery', 'green', 'holed'];
+const END_LIES: Lie[] = ['fairway', 'rough', 'sand', 'recovery', 'green'];
 
 /**
  * One shot at a time, designed to be fast: start position carries over from the previous
@@ -78,16 +78,19 @@ export function RoundScreen() {
   // A putt may start at 0 (ball on the lip) and still be holed.
   const startOk = !Number.isNaN(start.dist) && (endLie === 'holed' ? start.dist >= 0 : start.dist > 0);
   const canSave = startOk && (endLie === 'holed' || (!Number.isNaN(inputs) && inputs >= 0));
-  const lastHole = plan ? plan.course.holes.length : round?.holes ?? 18;
   const total = shots.length + shots.reduce((a, s) => a + s.penalty, 0);
 
-  const save = async () => {
-    if (!round || !canSave) return;
+  /** Can the ball be marked as holed from where it lies now? */
+  const canHole = !Number.isNaN(start.dist) && start.dist >= 0;
+
+  const save = async (holeOut = false) => {
+    const lie: Lie = holeOut ? 'holed' : endLie;
+    if (!round || (holeOut ? !canHole : !canSave)) return;
     await addShot({
-      roundId: round.id, hole, par: curPar, shotNo: holeShots.length + 1, club,
-      startLie: start.lie, startDist: start.dist, endLie, endDist: endLie === 'holed' ? 0 : inputs, penalty,
+      roundId: round.id, hole, par: curPar, shotNo: holeShots.length + 1, club: holeOut && start.lie === 'green' ? 'Putter' : club,
+      startLie: start.lie, startDist: start.dist, endLie: lie, endDist: lie === 'holed' ? 0 : inputs, penalty,
     });
-    const next = endLie === 'holed';
+    const next = lie === 'holed';
     setEndDist('');
     setPenalty(0);
     if (next) {
@@ -179,18 +182,20 @@ export function RoundScreen() {
         {sgPreview !== null && (
           <Body muted>{t('round.sgPreview', { v: `${sgPreview > 0 ? '+' : ''}${num(sgPreview, 2)}` })}</Body>
         )}
-        <Button label={endLie === 'holed' ? t('round.holedNext') : t('round.saveShot')} onPress={save} disabled={!canSave} />
+        <Button label={t('round.saveShot')} onPress={() => save()} disabled={!canSave} />
+      </Card>
+
+      <Card>
+        <H2>{t('round.holeOutTitle')}</H2>
+        <Body muted>{t('round.holeOutHint')}</Body>
+        <Button label={t('round.nextHole')} onPress={() => save(true)} disabled={!canHole} />
       </Card>
 
       <Row>
         <Button label={t('round.prevHole')} variant="secondary" onPress={() => setHole(hole - 1)} disabled={hole <= 1} flex />
-        <Button label={t('round.nextHole')} variant="secondary" onPress={() => setHole(hole + 1)} disabled={hole >= lastHole} flex />
+        <Button label={t('round.undo')} variant="secondary" onPress={undo} disabled={shots.length === 0} flex />
       </Row>
-
-      <Row>
-        <Button label={t('round.undo')} variant="secondary" onPress={undo} disabled={shots.length === 0} />
-        <Button label={t('round.finishRound')} onPress={finish} />
-      </Row>
+      <Button label={t('round.finishRound')} onPress={finish} />
     </Screen>
   );
 }
