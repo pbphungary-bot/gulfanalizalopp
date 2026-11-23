@@ -75,7 +75,10 @@ export function RoundScreen() {
     ? { lie: last.endLie, dist: last.endDist }
     : { lie: 'tee' as Lie, dist: planned ? planned.length : parseLen(yardage) };
   const inputs = endLie === 'holed' ? 0 : endLie === 'green' ? parseShort(endDist) : parseLen(endDist);
-  const canSave = !Number.isNaN(start.dist) && start.dist > 0 && (endLie === 'holed' || (!Number.isNaN(inputs) && inputs >= 0));
+  // A putt may start at 0 (ball on the lip) and still be holed.
+  const startOk = !Number.isNaN(start.dist) && (endLie === 'holed' ? start.dist >= 0 : start.dist > 0);
+  const canSave = startOk && (endLie === 'holed' || (!Number.isNaN(inputs) && inputs >= 0));
+  const lastHole = plan ? plan.course.holes.length : round?.holes ?? 18;
   const total = shots.length + shots.reduce((a, s) => a + s.penalty, 0);
 
   const save = async () => {
@@ -178,6 +181,11 @@ export function RoundScreen() {
         )}
         <Button label={endLie === 'holed' ? t('round.holedNext') : t('round.saveShot')} onPress={save} disabled={!canSave} />
       </Card>
+
+      <Row>
+        <Button label={t('round.prevHole')} variant="secondary" onPress={() => setHole(hole - 1)} disabled={hole <= 1} flex />
+        <Button label={t('round.nextHole')} variant="secondary" onPress={() => setHole(hole + 1)} disabled={hole >= lastHole} flex />
+      </Row>
 
       <Row>
         <Button label={t('round.undo')} variant="secondary" onPress={undo} disabled={shots.length === 0} />

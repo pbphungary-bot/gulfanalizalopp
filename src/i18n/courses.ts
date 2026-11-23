@@ -1,6 +1,8 @@
 /** Course and tee text, kept apart from the main dictionaries. English is the source of truth. */
 export const courseEn = {
   'nav.addCourse': 'Add a course',
+  'round.prevHole': 'Previous hole',
+  'round.nextHole': 'Next hole',
   'tee.black': 'Black', 'tee.white': 'White', 'tee.yellow': 'Yellow', 'tee.blue': 'Blue',
   'tee.green': 'Green', 'tee.red': 'Red', 'tee.orange': 'Orange', 'tee.other': 'Other',
   'gender.men': 'Men', 'gender.women': 'Women',
@@ -48,6 +50,8 @@ export const courseEn = {
 
 export const courseHu: Record<keyof typeof courseEn, string> = {
   'nav.addCourse': 'Pálya hozzáadása',
+  'round.prevHole': 'Előző lyuk',
+  'round.nextHole': 'Következő lyuk',
   'tee.black': 'Fekete', 'tee.white': 'Fehér', 'tee.yellow': 'Sárga', 'tee.blue': 'Kék',
   'tee.green': 'Zöld', 'tee.red': 'Piros', 'tee.orange': 'Narancs', 'tee.other': 'Egyéb',
   'gender.men': 'Férfi', 'gender.women': 'Női',
